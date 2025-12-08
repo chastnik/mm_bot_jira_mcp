@@ -102,6 +102,12 @@ class MCPClient:
         try:
             # Создаем streamable HTTP клиент с заголовками авторизации пользователя
             headers = auth_headers or {}
+            logger.debug(f"Создание MCP сессии для пользователя {mm_user_id} с заголовками: {list(headers.keys())}")
+            if "Authorization" in headers:
+                # Маскируем токен для логирования
+                auth_header = headers["Authorization"]
+                masked = auth_header[:10] + "..." + auth_header[-10:] if len(auth_header) > 20 else "***"
+                logger.debug(f"Authorization заголовок: {masked}")
             context = streamablehttp_client(self._mcp_url, headers=headers)
             
             # Входим в контекст
