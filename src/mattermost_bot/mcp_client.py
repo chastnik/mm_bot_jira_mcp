@@ -1,6 +1,7 @@
 """Клиент для работы с встроенным MCP сервером."""
 
 import asyncio
+import json
 import logging
 import os
 import subprocess
@@ -8,6 +9,8 @@ import time
 from typing import Any, Optional
 
 import httpx
+from mcp import ClientSession
+from mcp.client.stdio import stdio_client
 
 logger = logging.getLogger(__name__)
 
@@ -28,18 +31,12 @@ class MCPClient:
             jira_url: URL Jira сервера (для базовой конфигурации)
             confluence_url: URL Confluence сервера (опционально)
         """
-        # Убеждаемся, что URL заканчивается на /mcp/
-        mcp_url = mcp_url.rstrip("/")
-        if not mcp_url.endswith("/mcp"):
-            # Если URL не содержит /mcp, добавляем его
-            self.mcp_url = f"{mcp_url}/mcp/"
-        else:
-            # Если уже есть /mcp, просто добавляем слэш в конце
-            self.mcp_url = f"{mcp_url}/"
         self.jira_url = jira_url
         self.confluence_url = confluence_url
         self.client = httpx.AsyncClient(timeout=30.0)
         self._server_process: Optional[subprocess.Popen] = None
+        self._mcp_session: Optional[ClientSession] = None
+        self._mcp_client_context = None
 
     async def start_server(
         self, port: int = 8000, host: str = "127.0.0.1"
@@ -59,38 +56,72 @@ class MCPClient:
         env["JIRA_URL"] = self.jira_url
         if self.confluence_url:
             env["CONFLUENCE_URL"] = self.confluence_url
-        env["TRANSPORT"] = "streamable-http"
-        env["PORT"] = str(port)
-        env["HOST"] = host
+        env["TRANSPORT"] = "stdio"
         env["MCP_LOGGING_STDOUT"] = "true"
         env["MCP_VERBOSE"] = "true"
 
-        # Запускаем MCP сервер в отдельном процессе
+        # Запускаем MCP сервер в отдельном процессе с stdio транспортом
         cmd = ["uv", "run", "mcp-atlassian"]
         self._server_process = subprocess.Popen(
             cmd,
             env=env,
+            stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
+            text=False,  # Используем бинарный режим для stdio
         )
 
-        # Ждем, пока сервер запустится
-        max_attempts = 30
-        for i in range(max_attempts):
-            try:
-                response = await self.client.get(f"http://{host}:{port}/healthz")
-                if response.status_code == 200:
-                    logger.info(f"MCP сервер запущен на http://{host}:{port}/mcp/")
-                    self.mcp_url = f"http://{host}:{port}/mcp/"
-                    return
-            except Exception:
-                pass
-            await asyncio.sleep(1)
+        # Инициализируем MCP сессию через stdio
+        await self._init_mcp_session()
+        logger.info("MCP сервер запущен с stdio транспортом")
 
-        raise RuntimeError("Не удалось запустить MCP сервер")
+    async def _init_mcp_session(self) -> None:
+        """Инициализировать MCP сессию через stdio_client."""
+        try:
+            if not self._server_process or not self._server_process.stdin or not self._server_process.stdout:
+                raise RuntimeError("MCP сервер не запущен или потоки недоступны")
+            
+            # Создаем stdio клиент как async context manager
+            self._mcp_client_context = stdio_client(
+                self._server_process.stdin,
+                self._server_process.stdout,
+            )
+            
+            # Входим в контекст
+            read_stream, write_stream = await self._mcp_client_context.__aenter__()
+            
+            # Создаем сессию
+            self._mcp_session = ClientSession(read_stream, write_stream)
+            await self._mcp_session.__aenter__()
+            
+            # Инициализируем соединение
+            await self._mcp_session.initialize()
+            
+            logger.info("MCP сессия инициализирована через stdio")
+        except Exception as e:
+            logger.error(f"Ошибка при инициализации MCP сессии: {e}")
+            raise
+
 
     async def stop_server(self) -> None:
         """Остановить MCP сервер."""
+        # Закрываем MCP сессию
+        if self._mcp_session:
+            try:
+                await self._mcp_session.__aexit__(None, None, None)
+            except Exception as e:
+                logger.warning(f"Ошибка при закрытии MCP сессии: {e}")
+            self._mcp_session = None
+        
+        # Закрываем streamable HTTP клиент
+        if self._mcp_client_context:
+            try:
+                await self._mcp_client_context.__aexit__(None, None, None)
+            except Exception as e:
+                logger.warning(f"Ошибка при закрытии MCP клиента: {e}")
+            self._mcp_client_context = None
+        
+        # Останавливаем процесс сервера
         if self._server_process:
             self._server_process.terminate()
             try:
@@ -106,36 +137,29 @@ class MCPClient:
         """Получить список доступных инструментов.
 
         Args:
-            auth_headers: Заголовки авторизации для пользователя
+            auth_headers: Заголовки авторизации для пользователя (игнорируются для stdio транспорта,
+                        авторизация происходит через переменные окружения процесса)
 
         Returns:
             Список доступных инструментов
         """
-        # Заголовки HTTP запроса
-        headers = {
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-        }
-        if auth_headers:
-            headers.update(auth_headers)
-
-        # MCP использует JSON-RPC протокол для запросов
-        request_data = {
-            "jsonrpc": "2.0",  # Версия протокола JSON-RPC
-            "id": 1,  # Идентификатор запроса
-            "method": "tools/list",  # Метод: получить список инструментов
-            "params": {},  # Параметры запроса (пустые для списка инструментов)
-        }
+        if not self._mcp_session:
+            logger.error("MCP сессия не инициализирована")
+            return []
 
         try:
-            response = await self.client.post(
-                self.mcp_url, json=request_data, headers=headers
-            )
-            response.raise_for_status()
-            result = response.json()
-            if "result" in result and "tools" in result["result"]:
-                return result["result"]["tools"]
-            return []
+            # Используем MCP ClientSession для получения списка инструментов
+            tools = await self._mcp_session.list_tools()
+            
+            # Преобразуем в формат, ожидаемый handlers
+            result = []
+            for tool in tools:
+                result.append({
+                    "name": tool.name,
+                    "description": tool.description or "",
+                    "inputSchema": tool.inputSchema.model_dump() if hasattr(tool.inputSchema, 'model_dump') else tool.inputSchema,
+                })
+            return result
         except Exception as e:
             logger.error(f"Ошибка при получении списка инструментов: {e}")
             return []
@@ -151,38 +175,20 @@ class MCPClient:
         Args:
             tool_name: Название инструмента
             arguments: Аргументы инструмента
-            auth_headers: Заголовки авторизации для пользователя
+            auth_headers: Заголовки авторизации для пользователя (игнорируются для stdio транспорта,
+                        авторизация происходит через переменные окружения процесса)
 
         Returns:
             Результат выполнения инструмента
         """
-        # Заголовки HTTP запроса
-        headers = {
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-        }
-        if auth_headers:
-            headers.update(auth_headers)
-
-        # Формируем JSON-RPC запрос на вызов инструмента
-        request_data = {
-            "jsonrpc": "2.0",  # Версия протокола JSON-RPC
-            "id": 2,  # Идентификатор запроса
-            "method": "tools/call",  # Метод: вызов инструмента
-            "params": {"name": tool_name, "arguments": arguments},  # Параметры: название и аргументы инструмента
-        }
+        if not self._mcp_session:
+            logger.error("MCP сессия не инициализирована")
+            raise RuntimeError("MCP сессия не инициализирована")
 
         try:
-            response = await self.client.post(
-                self.mcp_url, json=request_data, headers=headers
-            )
-            response.raise_for_status()
-            result = response.json()
-            if "result" in result:
-                return result["result"]
-            elif "error" in result:
-                raise RuntimeError(f"MCP ошибка: {result['error']}")
-            return {}
+            # Используем MCP ClientSession для вызова инструмента
+            result = await self._mcp_session.call_tool(tool_name, arguments)
+            return result
         except Exception as e:
             logger.error(f"Ошибка при вызове инструмента {tool_name}: {e}")
             raise
