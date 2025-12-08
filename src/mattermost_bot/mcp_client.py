@@ -66,11 +66,16 @@ class MCPClient:
 
         # Запускаем MCP сервер в отдельном процессе
         cmd = ["uv", "run", "mcp-atlassian"]
+        # Перенаправляем stdout/stderr в файлы для отладки
+        log_dir = os.path.expanduser("~/.mcp_atlassian_logs")
+        os.makedirs(log_dir, exist_ok=True)
+        stdout_file = open(f"{log_dir}/mcp_server_stdout.log", "a")
+        stderr_file = open(f"{log_dir}/mcp_server_stderr.log", "a")
         self._server_process = subprocess.Popen(
             cmd,
             env=env,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            stdout=stdout_file,
+            stderr=stderr_file,
         )
 
         # Ждем, пока сервер запустится
