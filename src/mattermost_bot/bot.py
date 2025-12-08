@@ -192,7 +192,13 @@ class MattermostBot:
             # mattermostdriver использует синхронный API, поэтому запускаем в отдельном потоке
             def start_websocket():
                 """Запуск WebSocket соединения для получения сообщений от Mattermost."""
-                self.driver.init_websocket(self.handle_post)
+                # Создаем новый event loop для потока
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    self.driver.init_websocket(self.handle_post)
+                finally:
+                    loop.close()
 
             # Запускаем WebSocket в отдельном потоке (daemon=True означает, что поток завершится при выходе программы)
             import threading
