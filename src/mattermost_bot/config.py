@@ -13,24 +13,30 @@ load_dotenv()
 class BotConfig:
     """Конфигурация Mattermost бота."""
 
-    # Mattermost настройки
+    # Mattermost настройки (обязательные)
     mattermost_url: str
     mattermost_token: str
+
+    # LLM настройки (обязательные)
+    llm_api_url: str
+
+    # Jira/Confluence настройки (обязательные)
+    jira_url: str
+
+    # Mattermost настройки (опциональные)
     mattermost_team: str | None = None
 
-    # LLM настройки
-    llm_api_url: str
+    # LLM настройки (опциональные)
     llm_api_key: str | None = None
     llm_model: str = "local-model"
 
-    # Jira/Confluence настройки
-    jira_url: str
+    # Jira/Confluence настройки (опциональные)
     confluence_url: str | None = None
 
-    # База данных
+    # База данных (опциональные)
     database_path: str = "bot_data.db"
 
-    # Шифрование
+    # Шифрование (опциональные)
     encryption_key: str | None = None
 
     @classmethod
