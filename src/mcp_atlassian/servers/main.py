@@ -237,9 +237,16 @@ class UserTokenMiddleware(BaseHTTPMiddleware):
         logger.debug(
             f"UserTokenMiddleware.dispatch: Comparing request_path='{request_path}' with mcp_path='{mcp_path}'. Request method='{request.method}'"
         )
-        if request_path == mcp_path and request.method == "POST":
+        # Обрабатываем все методы для пути MCP, не только POST
+        if request_path == mcp_path:
             auth_header = request.headers.get("Authorization")
             cloud_id_header = request.headers.get("X-Atlassian-Cloud-Id")
+            
+            logger.debug(
+                f"UserTokenMiddleware.dispatch: MCP path matched. Method: {request.method}, "
+                f"Auth header present: {bool(auth_header)}, "
+                f"Auth header type: {auth_header.split(' ', 1)[0] if auth_header and ' ' in auth_header else 'None'}"
+            )
 
             token_for_log = mask_sensitive(
                 auth_header.split(" ", 1)[1].strip()
