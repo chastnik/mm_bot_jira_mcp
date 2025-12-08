@@ -1,11 +1,17 @@
 """Главный класс Mattermost бота."""
 
 import asyncio
+import json
 import logging
+import os
 import signal
+import ssl
 import sys
+import time
 from typing import Optional
+from urllib.parse import urlparse
 
+import websockets
 from mattermostdriver import Driver
 from mattermostdriver.exceptions import (
     InvalidOrMissingParameters,
@@ -102,12 +108,17 @@ class MattermostBot:
             port = 443
             url = mattermost_url
 
+        # Настройка SSL проверки (по умолчанию True, можно отключить через переменную окружения)
+        verify_ssl = os.getenv("MATTERMOST_SSL_VERIFY", "true").lower() in ("true", "1", "yes")
+        
         self.driver = Driver(
             {
                 "url": url,
                 "token": self.config.mattermost_token,
                 "scheme": scheme,
                 "port": port,
+                "verify": verify_ssl,
+                "timeout": 30,
             }
         )
 
@@ -120,6 +131,144 @@ class MattermostBot:
             raise
 
         logger.info("Бот инициализирован")
+
+    async def _connect_websocket(self) -> None:
+        """Подключение к WebSocket Mattermost."""
+        # Парсим URL для WebSocket
+        parsed_url = urlparse(self.config.mattermost_url)
+        
+        # Определяем схему WebSocket
+        ws_scheme = "wss" if parsed_url.scheme == "https" else "ws"
+        ws_port = parsed_url.port or (443 if parsed_url.scheme == "https" else 80)
+        
+        ws_url = f"{ws_scheme}://{parsed_url.hostname}:{ws_port}/api/v4/websocket"
+        
+        logger.info(f"Подключение к WebSocket: {ws_url}")
+        
+        # Настройка SSL контекста
+        verify_ssl = os.getenv("MATTERMOST_SSL_VERIFY", "true").lower() in ("true", "1", "yes")
+        ssl_context = None
+        if ws_scheme == "wss":
+            ssl_context = ssl.create_default_context()
+            if not verify_ssl:
+                ssl_context.check_hostname = False
+                ssl_context.verify_mode = ssl.CERT_NONE
+        
+        # Основной цикл переподключения
+        while self.running:
+            try:
+                async with websockets.connect(
+                    ws_url,
+                    ssl=ssl_context,
+                    ping_interval=30,
+                    ping_timeout=10,
+                    close_timeout=10,
+                ) as websocket:
+                    logger.info("WebSocket подключен")
+                    
+                    # Аутентификация
+                    await self._authenticate_websocket(websocket)
+                    
+                    logger.info("WebSocket аутентифицирован")
+                    
+                    # Основной цикл обработки сообщений
+                    async for message in websocket:
+                        if not self.running:
+                            break
+                        await self._handle_websocket_message(message)
+                        
+            except websockets.exceptions.ConnectionClosed:
+                if self.running:
+                    logger.warning("WebSocket соединение закрыто, переподключение через 5 секунд...")
+                    await asyncio.sleep(5)
+            except Exception as e:
+                if self.running:
+                    logger.error(f"Ошибка WebSocket: {e}, переподключение через 5 секунд...")
+                    await asyncio.sleep(5)
+
+    async def _authenticate_websocket(self, websocket) -> None:
+        """Аутентификация WebSocket соединения."""
+        auth_message = {
+            "seq": 1,
+            "action": "authentication_challenge",
+            "data": {
+                "token": self.config.mattermost_token,
+            },
+        }
+        
+        await websocket.send(json.dumps(auth_message))
+        
+        # Ждем подтверждения аутентификации
+        auth_timeout = 10
+        start_time = time.time()
+        
+        while time.time() - start_time < auth_timeout:
+            try:
+                message = await asyncio.wait_for(websocket.recv(), timeout=1.0)
+                event = json.loads(message)
+                
+                if event.get("event") == "hello":
+                    logger.info("WebSocket аутентификация успешна")
+                    return
+                    
+            except asyncio.TimeoutError:
+                continue
+            except Exception as e:
+                logger.error(f"Ошибка аутентификации WebSocket: {e}")
+                raise
+        
+        raise Exception("Таймаут аутентификации WebSocket")
+
+    async def _handle_websocket_message(self, message: str | bytes) -> None:
+        """Обработка сообщения от WebSocket."""
+        try:
+            if isinstance(message, bytes):
+                message_str = message.decode()
+            else:
+                message_str = str(message)
+                
+            event = json.loads(message_str)
+            event_type = event.get("event")
+            
+            if event_type == "posted":
+                await self._handle_post_event(event)
+            elif event_type == "hello":
+                logger.debug("Получен hello от WebSocket")
+            else:
+                logger.debug(f"Событие WebSocket: {event_type}")
+                
+        except json.JSONDecodeError as e:
+            logger.error(f"Ошибка парсинга JSON от WebSocket: {e}")
+        except Exception as e:
+            logger.error(f"Ошибка обработки WebSocket сообщения: {e}")
+
+    async def _handle_post_event(self, event: dict) -> None:
+        """Обработка события нового поста."""
+        try:
+            # Извлекаем данные поста
+            post_data = event.get("data", {}).get("post")
+            if not post_data:
+                return
+            
+            # Парсим пост (может быть строкой JSON)
+            if isinstance(post_data, str):
+                post = json.loads(post_data)
+            else:
+                post = post_data
+            
+            # Получаем информацию о боте
+            me = self.driver.users.get_user("me")
+            bot_user_id = me["id"]
+            
+            # Игнорируем сообщения от самого бота
+            if post.get("user_id") == bot_user_id:
+                return
+            
+            # Вызываем обработчик поста
+            self.handle_post(post)
+                
+        except Exception as e:
+            logger.error(f"Ошибка обработки события поста: {e}")
 
     def handle_post(self, post: dict) -> None:
         """Обработать сообщение от пользователя.
@@ -186,24 +335,10 @@ class MattermostBot:
 
         logger.info("Бот запущен и готов к работе")
 
-        # Подписываемся на события
+        # Подписываемся на события через WebSocket
         try:
-            # Получаем WebSocket соединение
-            # mattermostdriver использует синхронный API, поэтому запускаем в отдельном потоке
-            def start_websocket():
-                """Запуск WebSocket соединения для получения сообщений от Mattermost."""
-                # Создаем новый event loop для потока
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                try:
-                    self.driver.init_websocket(self.handle_post)
-                finally:
-                    loop.close()
-
-            # Запускаем WebSocket в отдельном потоке (daemon=True означает, что поток завершится при выходе программы)
-            import threading
-            ws_thread = threading.Thread(target=start_websocket, daemon=True)
-            ws_thread.start()
+            # Запускаем WebSocket соединение в отдельной задаче
+            asyncio.create_task(self._connect_websocket())
 
             # Ожидаем сигналов для остановки
             loop = asyncio.get_event_loop()
