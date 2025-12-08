@@ -1,5 +1,6 @@
 """Обработчики сообщений Mattermost."""
 
+import asyncio
 import logging
 from typing import Optional
 
@@ -12,10 +13,8 @@ logger = logging.getLogger(__name__)
 
 # Состояния диалога для сбора учетных данных
 DIALOG_STATE_NONE = "none"
-DIALOG_STATE_WAITING_JIRA_USERNAME = "waiting_jira_username"
-DIALOG_STATE_WAITING_JIRA_PASSWORD = "waiting_jira_password"
-DIALOG_STATE_WAITING_CONFLUENCE_USERNAME = "waiting_confluence_username"
-DIALOG_STATE_WAITING_CONFLUENCE_PASSWORD = "waiting_confluence_password"
+DIALOG_STATE_WAITING_USERNAME = "waiting_username"
+DIALOG_STATE_WAITING_PASSWORD = "waiting_password"
 
 
 class MessageHandlers:
@@ -53,7 +52,7 @@ class MessageHandlers:
 
 **Как начать работу:**
 
-1. Предоставьте свои учетные данные для Jira и Confluence
+1. Предоставьте свои учетные данные (логин и пароль от Jira, который также используется для Confluence)
 2. После этого вы сможете задавать вопросы, связанные с Jira и Confluence
 
 **Команды:**
@@ -66,7 +65,8 @@ class MessageHandlers:
 - "Создай задачу в Jira с названием 'Новая задача'"
 
 **Безопасность:**
-Ваши пароли хранятся в зашифрованном виде и используются только для выполнения ваших запросов."""
+Ваши пароли хранятся в зашифрованном виде и используются только для выполнения ваших запросов.
+Один пароль используется для доступа к обоим сервисам (Jira и Confluence)."""
 
     async def handle_message(
         self, mm_user_id: str, message: str
@@ -95,9 +95,8 @@ class MessageHandlers:
 
         # Проверяем, есть ли у пользователя учетные данные
         has_jira = self.storage.has_jira_credentials(mm_user_id)
-        has_confluence = self.storage.has_confluence_credentials(mm_user_id)
 
-        if not has_jira and not has_confluence:
+        if not has_jira:
             # Начинаем процесс регистрации
             return await self._start_registration(mm_user_id)
 
@@ -114,27 +113,13 @@ class MessageHandlers:
             Сообщение с инструкциями
         """
         has_jira = self.storage.has_jira_credentials(mm_user_id)
-        has_confluence = self.storage.has_confluence_credentials(mm_user_id)
 
         if not has_jira:
-            self.dialog_states[mm_user_id] = DIALOG_STATE_WAITING_JIRA_USERNAME
+            self.dialog_states[mm_user_id] = DIALOG_STATE_WAITING_USERNAME
             self.temp_data[mm_user_id] = {}
             return (
                 "Для начала работы необходимо настроить учетные данные.\n\n"
-                "**Шаг 1: Jira**\n"
-                "Введите ваш логин для Jira:"
-            )
-
-        if not has_confluence and self.auth_manager.confluence_url:
-            self.dialog_states[mm_user_id] = (
-                DIALOG_STATE_WAITING_CONFLUENCE_USERNAME
-            )
-            if mm_user_id not in self.temp_data:
-                self.temp_data[mm_user_id] = {}
-            return (
-                "Jira настроен!\n\n"
-                "**Шаг 2: Confluence**\n"
-                "Введите ваш логин для Confluence:"
+                "Введите ваш логин для Jira (он же используется для Confluence):"
             )
 
         return "Все учетные данные настроены! Теперь вы можете задавать вопросы."
@@ -152,64 +137,37 @@ class MessageHandlers:
         Returns:
             Ответ бота
         """
-        if state == DIALOG_STATE_WAITING_JIRA_USERNAME:
-            self.temp_data[mm_user_id]["jira_username"] = message
-            self.dialog_states[mm_user_id] = DIALOG_STATE_WAITING_JIRA_PASSWORD
-            return "Введите ваш пароль для Jira:"
+        if state == DIALOG_STATE_WAITING_USERNAME:
+            self.temp_data[mm_user_id]["username"] = message
+            self.dialog_states[mm_user_id] = DIALOG_STATE_WAITING_PASSWORD
+            return "Введите ваш пароль (используется для Jira и Confluence):"
 
-        elif state == DIALOG_STATE_WAITING_JIRA_PASSWORD:
-            username = self.temp_data[mm_user_id]["jira_username"]
+        elif state == DIALOG_STATE_WAITING_PASSWORD:
+            username = self.temp_data[mm_user_id]["username"]
             password = message
-            success, error = self.auth_manager.save_and_validate_jira(
+            # Сохраняем один пароль для обоих сервисов
+            success, error = self.auth_manager.save_and_validate_both(
                 mm_user_id, username, password
             )
             if success:
                 self.dialog_states[mm_user_id] = DIALOG_STATE_NONE
                 del self.temp_data[mm_user_id]
+                services = []
+                if self.auth_manager.jira_url:
+                    services.append("Jira")
                 if self.auth_manager.confluence_url:
-                    self.dialog_states[mm_user_id] = (
-                        DIALOG_STATE_WAITING_CONFLUENCE_USERNAME
-                    )
-                    self.temp_data[mm_user_id] = {}
-                    return (
-                        "✅ Jira успешно настроен!\n\n"
-                        "**Шаг 2: Confluence**\n"
-                        "Введите ваш логин для Confluence:"
-                    )
-                else:
-                    return (
-                        "✅ Jira успешно настроен!\n\n"
-                        "Теперь вы можете задавать вопросы, связанные с Jira."
-                    )
-            else:
-                self.dialog_states[mm_user_id] = DIALOG_STATE_WAITING_JIRA_USERNAME
-                return f"❌ Ошибка при настройке Jira: {error}\n\nПопробуйте еще раз. Введите ваш логин для Jira:"
-
-        elif state == DIALOG_STATE_WAITING_CONFLUENCE_USERNAME:
-            self.temp_data[mm_user_id]["confluence_username"] = message
-            self.dialog_states[mm_user_id] = (
-                DIALOG_STATE_WAITING_CONFLUENCE_PASSWORD
-            )
-            return "Введите ваш пароль для Confluence:"
-
-        elif state == DIALOG_STATE_WAITING_CONFLUENCE_PASSWORD:
-            username = self.temp_data[mm_user_id]["confluence_username"]
-            password = message
-            success, error = self.auth_manager.save_and_validate_confluence(
-                mm_user_id, username, password
-            )
-            if success:
-                self.dialog_states[mm_user_id] = DIALOG_STATE_NONE
-                del self.temp_data[mm_user_id]
+                    services.append("Confluence")
+                services_str = " и ".join(services)
                 return (
-                    "✅ Confluence успешно настроен!\n\n"
+                    f"✅ Учетные данные успешно настроены для {services_str}!\n\n"
                     "Теперь вы можете задавать вопросы, связанные с Jira и Confluence."
                 )
             else:
-                self.dialog_states[mm_user_id] = (
-                    DIALOG_STATE_WAITING_CONFLUENCE_USERNAME
+                self.dialog_states[mm_user_id] = DIALOG_STATE_WAITING_USERNAME
+                return (
+                    f"❌ Ошибка при настройке учетных данных: {error}\n\n"
+                    "Попробуйте еще раз. Введите ваш логин для Jira (он же используется для Confluence):"
                 )
-                return f"❌ Ошибка при настройке Confluence: {error}\n\nПопробуйте еще раз. Введите ваш логин для Confluence:"
 
         return "Неизвестное состояние диалога. Начните заново с команды /start"
 

@@ -139,6 +139,47 @@ class AuthManager:
             )
         return success, error
 
+    def save_and_validate_both(
+        self, mm_user_id: str, username: str, password: str
+    ) -> tuple[bool, Optional[str]]:
+        """Сохранить и проверить учетные данные для Jira и Confluence.
+
+        Использует один логин и пароль для обоих сервисов.
+
+        Args:
+            mm_user_id: ID пользователя в Mattermost
+            username: Логин (используется для Jira и Confluence)
+            password: Пароль (используется для Jira и Confluence)
+
+        Returns:
+            Кортеж (успех, сообщение об ошибке)
+        """
+        # Проверяем Jira
+        jira_success, jira_error = self.validate_jira_credentials(username, password)
+        if not jira_success:
+            return False, f"Ошибка проверки Jira: {jira_error}"
+
+        # Проверяем Confluence, если он настроен
+        confluence_success = True
+        confluence_error = None
+        if self.confluence_url:
+            confluence_success, confluence_error = self.validate_confluence_credentials(
+                username, password
+            )
+            if not confluence_success:
+                return False, f"Ошибка проверки Confluence: {confluence_error}"
+
+        # Если все проверки прошли успешно, сохраняем учетные данные
+        self.storage.save_user_credentials(
+            mm_user_id,
+            jira_username=username,
+            jira_password=password,
+            confluence_username=username if self.confluence_url else None,
+            confluence_password=password if self.confluence_url else None,
+        )
+
+        return True, None
+
     def get_user_auth_headers(
         self, mm_user_id: str, service: str = "jira"
     ) -> Optional[dict[str, str]]:

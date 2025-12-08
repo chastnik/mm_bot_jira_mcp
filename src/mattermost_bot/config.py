@@ -51,9 +51,9 @@ class BotConfig:
         if not mattermost_token:
             raise ValueError("MATTERMOST_TOKEN не установлен")
 
-        llm_api_url = os.getenv("LLM_API_URL")
+        llm_api_url = os.getenv("LLM_BASE_URL")
         if not llm_api_url:
-            raise ValueError("LLM_API_URL не установлен")
+            raise ValueError("LLM_BASE_URL не установлен")
 
         jira_url = os.getenv("JIRA_URL")
         if not jira_url:
@@ -64,7 +64,7 @@ class BotConfig:
             mattermost_token=mattermost_token,
             mattermost_team=os.getenv("MATTERMOST_TEAM"),
             llm_api_url=llm_api_url,
-            llm_api_key=os.getenv("LLM_API_KEY"),
+            llm_api_key=os.getenv("LLM_PROXY_TOKEN"),
             llm_model=os.getenv("LLM_MODEL", "local-model"),
             jira_url=jira_url,
             confluence_url=os.getenv("CONFLUENCE_URL"),
