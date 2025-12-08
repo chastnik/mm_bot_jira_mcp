@@ -206,7 +206,7 @@ class MessageHandlers:
             # В текущей реализации MCP сервер использует одну авторизацию для обоих сервисов
 
             # Получаем список доступных инструментов
-            tools = await self.mcp_client.list_tools(auth_headers)
+            tools = await self.mcp_client.list_tools(auth_headers, mm_user_id)
             if not tools:
                 return "Не удалось получить список инструментов MCP. Проверьте настройки сервера."
 
@@ -246,7 +246,7 @@ class MessageHandlers:
 
                         arguments = json.loads(tool_call["function"]["arguments"])
                         result = await self.mcp_client.call_tool(
-                            tool_name, arguments, auth_headers
+                            tool_name, arguments, auth_headers, mm_user_id
                         )
                         # Форматируем результат
                         if isinstance(result, dict):

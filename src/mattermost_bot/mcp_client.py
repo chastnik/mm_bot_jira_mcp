@@ -10,7 +10,7 @@ from typing import Any, Optional
 
 import httpx
 from mcp import ClientSession
-from mcp.client.stdio import stdio_client
+from mcp.client.streamable_http import streamablehttp_client
 
 logger = logging.getLogger(__name__)
 
@@ -35,8 +35,10 @@ class MCPClient:
         self.confluence_url = confluence_url
         self.client = httpx.AsyncClient(timeout=30.0)
         self._server_process: Optional[subprocess.Popen] = None
-        self._mcp_session: Optional[ClientSession] = None
-        self._mcp_client_context = None
+        self._mcp_url: Optional[str] = None
+        # Сессии для каждого пользователя (ключ - mm_user_id)
+        self._user_sessions: dict[str, ClientSession] = {}
+        self._user_contexts: dict[str, Any] = {}
 
     async def start_server(
         self, port: int = 8000, host: str = "127.0.0.1"
@@ -56,70 +58,89 @@ class MCPClient:
         env["JIRA_URL"] = self.jira_url
         if self.confluence_url:
             env["CONFLUENCE_URL"] = self.confluence_url
-        env["TRANSPORT"] = "stdio"
+        env["TRANSPORT"] = "streamable-http"
+        env["PORT"] = str(port)
+        env["HOST"] = host
         env["MCP_LOGGING_STDOUT"] = "true"
         env["MCP_VERBOSE"] = "true"
 
-        # Запускаем MCP сервер в отдельном процессе с stdio транспортом
+        # Запускаем MCP сервер в отдельном процессе
         cmd = ["uv", "run", "mcp-atlassian"]
         self._server_process = subprocess.Popen(
             cmd,
             env=env,
-            stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            text=False,  # Используем бинарный режим для stdio
         )
 
-        # Инициализируем MCP сессию через stdio
-        await self._init_mcp_session()
-        logger.info("MCP сервер запущен с stdio транспортом")
+        # Ждем, пока сервер запустится
+        max_attempts = 30
+        for i in range(max_attempts):
+            try:
+                response = await self.client.get(f"http://{host}:{port}/healthz")
+                if response.status_code == 200:
+                    logger.info(f"MCP сервер запущен на http://{host}:{port}/mcp")
+                    self._mcp_url = f"http://{host}:{port}/mcp"
+                    return
+            except Exception:
+                pass
+            await asyncio.sleep(1)
 
-    async def _init_mcp_session(self) -> None:
-        """Инициализировать MCP сессию через stdio_client."""
+        raise RuntimeError("Не удалось запустить MCP сервер")
+
+
+    async def _get_or_create_session(
+        self, mm_user_id: str, auth_headers: Optional[dict[str, str]] = None
+    ) -> ClientSession:
+        """Получить или создать MCP сессию для пользователя."""
+        if mm_user_id in self._user_sessions:
+            return self._user_sessions[mm_user_id]
+        
+        if not self._mcp_url:
+            raise RuntimeError("MCP сервер не запущен")
+        
         try:
-            if not self._server_process or not self._server_process.stdin or not self._server_process.stdout:
-                raise RuntimeError("MCP сервер не запущен или потоки недоступны")
-            
-            # Создаем stdio клиент как async context manager
-            self._mcp_client_context = stdio_client(
-                self._server_process.stdin,
-                self._server_process.stdout,
-            )
+            # Создаем streamable HTTP клиент с заголовками авторизации пользователя
+            headers = auth_headers or {}
+            context = streamablehttp_client(self._mcp_url, headers=headers)
             
             # Входим в контекст
-            read_stream, write_stream = await self._mcp_client_context.__aenter__()
+            read_stream, write_stream, _ = await context.__aenter__()
             
             # Создаем сессию
-            self._mcp_session = ClientSession(read_stream, write_stream)
-            await self._mcp_session.__aenter__()
+            session = ClientSession(read_stream, write_stream)
+            await session.__aenter__()
             
             # Инициализируем соединение
-            await self._mcp_session.initialize()
+            await session.initialize()
             
-            logger.info("MCP сессия инициализирована через stdio")
+            # Сохраняем сессию и контекст
+            self._user_sessions[mm_user_id] = session
+            self._user_contexts[mm_user_id] = context
+            
+            logger.info(f"MCP сессия создана для пользователя {mm_user_id}")
+            return session
         except Exception as e:
-            logger.error(f"Ошибка при инициализации MCP сессии: {e}")
+            logger.error(f"Ошибка при создании MCP сессии для пользователя {mm_user_id}: {e}")
             raise
-
 
     async def stop_server(self) -> None:
         """Остановить MCP сервер."""
-        # Закрываем MCP сессию
-        if self._mcp_session:
+        # Закрываем все пользовательские сессии
+        for mm_user_id, session in list(self._user_sessions.items()):
             try:
-                await self._mcp_session.__aexit__(None, None, None)
+                await session.__aexit__(None, None, None)
             except Exception as e:
-                logger.warning(f"Ошибка при закрытии MCP сессии: {e}")
-            self._mcp_session = None
+                logger.warning(f"Ошибка при закрытии MCP сессии для {mm_user_id}: {e}")
         
-        # Закрываем streamable HTTP клиент
-        if self._mcp_client_context:
+        for mm_user_id, context in list(self._user_contexts.items()):
             try:
-                await self._mcp_client_context.__aexit__(None, None, None)
+                await context.__aexit__(None, None, None)
             except Exception as e:
-                logger.warning(f"Ошибка при закрытии MCP клиента: {e}")
-            self._mcp_client_context = None
+                logger.warning(f"Ошибка при закрытии MCP контекста для {mm_user_id}: {e}")
+        
+        self._user_sessions.clear()
+        self._user_contexts.clear()
         
         # Останавливаем процесс сервера
         if self._server_process:
@@ -132,24 +153,27 @@ class MCPClient:
             logger.info("MCP сервер остановлен")
 
     async def list_tools(
-        self, auth_headers: Optional[dict[str, str]] = None
+        self, auth_headers: Optional[dict[str, str]] = None, mm_user_id: Optional[str] = None
     ) -> list[dict[str, Any]]:
         """Получить список доступных инструментов.
 
         Args:
-            auth_headers: Заголовки авторизации для пользователя (игнорируются для stdio транспорта,
-                        авторизация происходит через переменные окружения процесса)
+            auth_headers: Заголовки авторизации для пользователя
+            mm_user_id: ID пользователя в Mattermost (для создания сессии)
 
         Returns:
             Список доступных инструментов
         """
-        if not self._mcp_session:
-            logger.error("MCP сессия не инициализирована")
+        if not mm_user_id:
+            logger.error("mm_user_id не указан для list_tools")
             return []
 
         try:
+            # Получаем или создаем сессию для пользователя
+            session = await self._get_or_create_session(mm_user_id, auth_headers)
+            
             # Используем MCP ClientSession для получения списка инструментов
-            tools = await self._mcp_session.list_tools()
+            tools = await session.list_tools()
             
             # Преобразуем в формат, ожидаемый handlers
             result = []
@@ -169,25 +193,28 @@ class MCPClient:
         tool_name: str,
         arguments: dict[str, Any],
         auth_headers: Optional[dict[str, str]] = None,
+        mm_user_id: Optional[str] = None,
     ) -> dict[str, Any]:
         """Вызвать инструмент MCP.
 
         Args:
             tool_name: Название инструмента
             arguments: Аргументы инструмента
-            auth_headers: Заголовки авторизации для пользователя (игнорируются для stdio транспорта,
-                        авторизация происходит через переменные окружения процесса)
+            auth_headers: Заголовки авторизации для пользователя
+            mm_user_id: ID пользователя в Mattermost (для создания сессии)
 
         Returns:
             Результат выполнения инструмента
         """
-        if not self._mcp_session:
-            logger.error("MCP сессия не инициализирована")
-            raise RuntimeError("MCP сессия не инициализирована")
+        if not mm_user_id:
+            raise RuntimeError("mm_user_id не указан для call_tool")
 
         try:
+            # Получаем или создаем сессию для пользователя
+            session = await self._get_or_create_session(mm_user_id, auth_headers)
+            
             # Используем MCP ClientSession для вызова инструмента
-            result = await self._mcp_session.call_tool(tool_name, arguments)
+            result = await session.call_tool(tool_name, arguments)
             return result
         except Exception as e:
             logger.error(f"Ошибка при вызове инструмента {tool_name}: {e}")
