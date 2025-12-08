@@ -214,6 +214,9 @@ class UserTokenMiddleware(BaseHTTPMiddleware):
     ) -> None:
         super().__init__(app)
         self.mcp_server_ref = mcp_server_ref
+        logger.info(
+            f"UserTokenMiddleware.__init__: Initialized with mcp_server_ref={mcp_server_ref is not None}"
+        )
         if not self.mcp_server_ref:
             logger.warning(
                 "UserTokenMiddleware initialized without mcp_server_ref. Path matching for MCP endpoint might fail if settings are needed."
