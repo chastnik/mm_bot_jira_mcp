@@ -189,18 +189,15 @@ class MessageHandlers:
 
             # Создаем заголовки авторизации для MCP
             # Для локального сервера используем Basic auth через username:password
-            # Передаем как Token для совместимости с middleware
             auth_headers = {}
             if creds["jira_username"] and creds["jira_password"]:
-                # Для локального сервера передаем username:password как токен
-                # В формате base64 для безопасности при передаче
+                # Для локального сервера передаем username:password через Basic Auth
                 import base64
 
                 credentials = f"{creds['jira_username']}:{creds['jira_password']}"
                 encoded = base64.b64encode(credentials.encode()).decode()
-                # Используем формат Token для совместимости с middleware
-                # В dependencies нужно будет парсить это как basic auth
-                auth_headers["Authorization"] = f"Token {encoded}"
+                # Используем формат Basic для поддержки username:password
+                auth_headers["Authorization"] = f"Basic {encoded}"
 
             # Примечание: для Confluence используем тот же подход, если нужно
             # В текущей реализации MCP сервер использует одну авторизацию для обоих сервисов

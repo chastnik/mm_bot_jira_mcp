@@ -304,13 +304,43 @@ class UserTokenMiddleware(BaseHTTPMiddleware):
                 logger.debug(
                     "UserTokenMiddleware.dispatch: Set request.state for PAT auth."
                 )
+            elif auth_header and auth_header.startswith("Basic "):
+                # Поддержка Basic Auth для username:password
+                import base64
+                try:
+                    encoded = auth_header.split(" ", 1)[1].strip()
+                    decoded = base64.b64decode(encoded).decode("utf-8")
+                    if ":" not in decoded:
+                        return JSONResponse(
+                            {"error": "Unauthorized: Invalid Basic auth format"},
+                            status_code=401,
+                        )
+                    username, password = decoded.split(":", 1)
+                    logger.debug(
+                        f"UserTokenMiddleware.dispatch: Basic auth extracted for user: {username}"
+                    )
+                    # Сохраняем username и password для использования в dependencies
+                    request.state.user_atlassian_username = username
+                    request.state.user_atlassian_password = password
+                    request.state.user_atlassian_auth_type = "basic"
+                    request.state.user_atlassian_token = None
+                    request.state.user_atlassian_email = username
+                    logger.debug(
+                        "UserTokenMiddleware.dispatch: Set request.state for Basic auth."
+                    )
+                except Exception as e:
+                    logger.error(f"Error decoding Basic auth: {e}")
+                    return JSONResponse(
+                        {"error": "Unauthorized: Invalid Basic auth encoding"},
+                        status_code=401,
+                    )
             elif auth_header:
                 logger.warning(
                     f"Unsupported Authorization type for {request.url.path}: {auth_header.split(' ', 1)[0] if ' ' in auth_header else 'UnknownType'}"
                 )
                 return JSONResponse(
                     {
-                        "error": "Unauthorized: Only 'Bearer <OAuthToken>' or 'Token <PAT>' types are supported."
+                        "error": "Unauthorized: Only 'Bearer <OAuthToken>', 'Token <PAT>', or 'Basic <base64>' types are supported."
                     },
                     status_code=401,
                 )

@@ -48,9 +48,9 @@ def _create_user_config_for_fetcher(
         ValueError: If required credentials are missing or auth_type is unsupported.
         TypeError: If base_config is not a supported type.
     """
-    if auth_type not in ["oauth", "pat"]:
+    if auth_type not in ["oauth", "pat", "basic"]:
         raise ValueError(
-            f"Unsupported auth_type '{auth_type}' for user-specific config creation. Expected 'oauth' or 'pat'."
+            f"Unsupported auth_type '{auth_type}' for user-specific config creation. Expected 'oauth', 'pat', or 'basic'."
         )
 
     username_for_config: str | None = credentials.get("user_email_context")
@@ -137,6 +137,29 @@ def _create_user_config_for_fetcher(
                 "api_token": None,
             }
         )
+    elif auth_type == "basic":
+        user_username = credentials.get("username")
+        user_password = credentials.get("password")
+        if not user_username or not user_password:
+            raise ValueError(
+                "Username and password missing in credentials for user auth_type 'basic'"
+            )
+
+        # Log warning if cloud_id is provided with Basic auth (not typically needed)
+        if cloud_id:
+            logger.warning(
+                f"Cloud ID '{cloud_id}' provided with Basic auth. "
+                "Basic authentication typically uses the base URL directly and doesn't require cloud_id override."
+            )
+
+        common_args.update(
+            {
+                "username": user_username,
+                "api_token": user_password,  # Password is used as api_token for Basic auth
+                "personal_token": None,
+                "oauth_config": None,
+            }
+        )
 
     if isinstance(base_config, JiraConfig):
         user_jira_config: UserJiraConfigType = dataclasses.replace(
@@ -181,7 +204,7 @@ async def get_jira_fetcher(ctx: Context) -> JiraFetcher:
             return request.state.jira_fetcher
         user_auth_type = getattr(request.state, "user_atlassian_auth_type", None)
         logger.debug(f"get_jira_fetcher: User auth type: {user_auth_type}")
-        # If OAuth or PAT token is present, create user-specific fetcher
+        # If OAuth, PAT token, or Basic auth is present, create user-specific fetcher
         if user_auth_type in ["oauth", "pat"] and hasattr(
             request.state, "user_atlassian_token"
         ):
@@ -233,9 +256,58 @@ async def get_jira_fetcher(ctx: Context) -> JiraFetcher:
                     exc_info=True,
                 )
                 raise ValueError(f"Invalid user Jira token or configuration: {e}")
+        elif user_auth_type == "basic" and hasattr(
+            request.state, "user_atlassian_username"
+        ):
+            user_username = getattr(request.state, "user_atlassian_username", None)
+            user_password = getattr(request.state, "user_atlassian_password", None)
+
+            if not user_username or not user_password:
+                raise ValueError(
+                    "User Atlassian username or password found in state but is empty."
+                )
+            credentials = {
+                "username": user_username,
+                "password": user_password,
+                "user_email_context": user_username,
+            }
+            lifespan_ctx_dict = ctx.request_context.lifespan_context  # type: ignore
+            app_lifespan_ctx: MainAppContext | None = (
+                lifespan_ctx_dict.get("app_lifespan_context")
+                if isinstance(lifespan_ctx_dict, dict)
+                else None
+            )
+            if not app_lifespan_ctx or not app_lifespan_ctx.full_jira_config:
+                raise ValueError(
+                    "Jira global configuration (URL, SSL) is not available from lifespan context."
+                )
+
+            logger.info(
+                f"Creating user-specific JiraFetcher (type: basic) for user {user_username}"
+            )
+            user_specific_config = _create_user_config_for_fetcher(
+                base_config=app_lifespan_ctx.full_jira_config,
+                auth_type="basic",
+                credentials=credentials,
+                cloud_id=None,
+            )
+            try:
+                user_jira_fetcher = JiraFetcher(config=user_specific_config)
+                current_user_id = user_jira_fetcher.get_current_user_account_id()
+                logger.debug(
+                    f"get_jira_fetcher: Validated Jira Basic auth for user ID: {current_user_id}"
+                )
+                request.state.jira_fetcher = user_jira_fetcher
+                return user_jira_fetcher
+            except Exception as e:
+                logger.error(
+                    f"get_jira_fetcher: Failed to create/validate user-specific JiraFetcher with Basic auth: {e}",
+                    exc_info=True,
+                )
+                raise ValueError(f"Invalid user Jira credentials or configuration: {e}")
         else:
             logger.debug(
-                f"get_jira_fetcher: No user-specific JiraFetcher. Auth type: {user_auth_type}. Token present: {hasattr(request.state, 'user_atlassian_token')}. Will use global fallback."
+                f"get_jira_fetcher: No user-specific JiraFetcher. Auth type: {user_auth_type}. Token present: {hasattr(request.state, 'user_atlassian_token')}. Username present: {hasattr(request.state, 'user_atlassian_username')}. Will use global fallback."
             )
     except RuntimeError:
         logger.debug(
