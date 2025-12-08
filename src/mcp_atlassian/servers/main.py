@@ -244,7 +244,8 @@ class UserTokenMiddleware(BaseHTTPMiddleware):
         mcp_path = mcp_server_instance.settings.streamable_http_path.rstrip("/")
         request_path = request.url.path.rstrip("/")
         logger.info(
-            f"UserTokenMiddleware.dispatch: Comparing request_path='{request_path}' with mcp_path='{mcp_path}'. Request method='{request.method}'"
+            f"UserTokenMiddleware.dispatch: Comparing request_path='{request_path}' with mcp_path='{mcp_path}'. Request method='{request.method}'. "
+            f"streamable_http_path setting: {mcp_server_instance.settings.streamable_http_path}"
         )
         # Обрабатываем все методы для пути MCP, не только POST
         if request_path == mcp_path:
