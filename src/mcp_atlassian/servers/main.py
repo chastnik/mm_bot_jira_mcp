@@ -222,7 +222,7 @@ class UserTokenMiddleware(BaseHTTPMiddleware):
     async def dispatch(
         self, request: Request, call_next: RequestResponseEndpoint
     ) -> JSONResponse:
-        logger.debug(
+        logger.info(
             f"UserTokenMiddleware.dispatch: ENTERED for request path='{request.url.path}', method='{request.method}'"
         )
         mcp_server_instance = self.mcp_server_ref
@@ -234,18 +234,18 @@ class UserTokenMiddleware(BaseHTTPMiddleware):
 
         mcp_path = mcp_server_instance.settings.streamable_http_path.rstrip("/")
         request_path = request.url.path.rstrip("/")
-        logger.debug(
+        logger.info(
             f"UserTokenMiddleware.dispatch: Comparing request_path='{request_path}' with mcp_path='{mcp_path}'. Request method='{request.method}'"
         )
         # Обрабатываем все методы для пути MCP, не только POST
         if request_path == mcp_path:
-            logger.debug(
+            logger.info(
                 f"UserTokenMiddleware.dispatch: MCP path matched! Processing auth for {request.method} request"
             )
             auth_header = request.headers.get("Authorization")
             cloud_id_header = request.headers.get("X-Atlassian-Cloud-Id")
             
-            logger.debug(
+            logger.info(
                 f"UserTokenMiddleware.dispatch: MCP path matched. Method: {request.method}, "
                 f"Auth header present: {bool(auth_header)}, "
                 f"Auth header type: {auth_header.split(' ', 1)[0] if auth_header and ' ' in auth_header else 'None'}"
