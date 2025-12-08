@@ -222,12 +222,14 @@ class UserTokenMiddleware(BaseHTTPMiddleware):
     async def dispatch(
         self, request: Request, call_next: RequestResponseEndpoint
     ) -> JSONResponse:
+        # Логируем ВСЕ запросы для отладки
         logger.info(
-            f"UserTokenMiddleware.dispatch: ENTERED for request path='{request.url.path}', method='{request.method}'"
+            f"UserTokenMiddleware.dispatch: ENTERED for request path='{request.url.path}', method='{request.method}', "
+            f"headers={dict(request.headers)}"
         )
         mcp_server_instance = self.mcp_server_ref
         if mcp_server_instance is None:
-            logger.debug(
+            logger.warning(
                 "UserTokenMiddleware.dispatch: self.mcp_server_ref is None. Skipping MCP auth logic."
             )
             return await call_next(request)
