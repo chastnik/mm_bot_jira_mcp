@@ -173,16 +173,35 @@ class MCPClient:
             session = await self._get_or_create_session(mm_user_id, auth_headers)
             
             # Используем MCP ClientSession для получения списка инструментов
-            tools = await session.list_tools()
+            # list_tools() возвращает ListToolsResult (Pydantic модель) с полем tools
+            list_tools_result = await session.list_tools()
+            
+            # Извлекаем список инструментов из результата
+            # ListToolsResult имеет поле tools (список объектов Tool)
+            if hasattr(list_tools_result, 'tools'):
+                tools = list_tools_result.tools
+            elif isinstance(list_tools_result, tuple):
+                # Если это кортеж, берем первый элемент (список инструментов)
+                tools = list_tools_result[0] if list_tools_result else []
+            elif isinstance(list_tools_result, list):
+                # Если это уже список, используем его
+                tools = list_tools_result
+            else:
+                logger.error(f"Неожиданный тип результата list_tools: {type(list_tools_result)}, значение: {list_tools_result}")
+                return []
             
             # Преобразуем в формат, ожидаемый handlers
             result = []
             for tool in tools:
-                result.append({
-                    "name": tool.name,
-                    "description": tool.description or "",
-                    "inputSchema": tool.inputSchema.model_dump() if hasattr(tool.inputSchema, 'model_dump') else tool.inputSchema,
-                })
+                # Проверяем, что tool - это объект с атрибутом name
+                if hasattr(tool, 'name'):
+                    result.append({
+                        "name": tool.name,
+                        "description": getattr(tool, 'description', '') or "",
+                        "inputSchema": tool.inputSchema.model_dump() if hasattr(tool.inputSchema, 'model_dump') else (tool.inputSchema if hasattr(tool, 'inputSchema') else {}),
+                    })
+                else:
+                    logger.warning(f"Инструмент не имеет атрибута name: {type(tool)}, {tool}")
             return result
         except Exception as e:
             logger.error(f"Ошибка при получении списка инструментов: {e}")
