@@ -264,13 +264,13 @@ class MattermostBot:
             if post.get("user_id") == bot_user_id:
                 return
             
-            # Вызываем обработчик поста
-            self.handle_post(post)
+            # Вызываем обработчик поста асинхронно
+            await self.handle_post(post)
                 
         except Exception as e:
             logger.error(f"Ошибка обработки события поста: {e}")
 
-    def handle_post(self, post: dict) -> None:
+    async def handle_post(self, post: dict) -> None:
         """Обработать сообщение от пользователя.
 
         Args:
@@ -297,19 +297,8 @@ class MattermostBot:
 
             logger.info(f"Получено сообщение от {username}: {message}")
 
-            # Обрабатываем сообщение (синхронно, так как вызывается из WebSocket)
-            # mattermostdriver использует синхронный API, поэтому нужно получить event loop
-            import asyncio
-            try:
-                loop = asyncio.get_event_loop()
-            except RuntimeError:
-                # Если event loop не существует, создаем новый
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-            
-            response = loop.run_until_complete(
-                self.handlers.handle_message(user_id, message)
-            )
+            # Обрабатываем сообщение асинхронно
+            response = await self.handlers.handle_message(user_id, message)
 
             # Отправляем ответ
             self.driver.posts.create_post(
