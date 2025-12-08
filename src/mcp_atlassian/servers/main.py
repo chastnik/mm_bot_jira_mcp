@@ -239,6 +239,9 @@ class UserTokenMiddleware(BaseHTTPMiddleware):
         )
         # Обрабатываем все методы для пути MCP, не только POST
         if request_path == mcp_path:
+            logger.debug(
+                f"UserTokenMiddleware.dispatch: MCP path matched! Processing auth for {request.method} request"
+            )
             auth_header = request.headers.get("Authorization")
             cloud_id_header = request.headers.get("X-Atlassian-Cloud-Id")
             
@@ -359,6 +362,10 @@ class UserTokenMiddleware(BaseHTTPMiddleware):
                 logger.debug(
                     f"No Authorization header provided for {request.url.path}. Will proceed with global/fallback server configuration if applicable."
                 )
+        else:
+            logger.debug(
+                f"UserTokenMiddleware.dispatch: Path '{request_path}' does not match MCP path '{mcp_path}'. Skipping auth processing."
+            )
         response = await call_next(request)
         logger.debug(
             f"UserTokenMiddleware.dispatch: EXITED for request path='{request.url.path}'"
