@@ -113,14 +113,24 @@ class MCPClient:
             context = streamablehttp_client(self._mcp_url, headers=headers)
             
             # Входим в контекст
+            logger.info(f"Вход в streamablehttp_client контекст для {mm_user_id}")
             read_stream, write_stream, _ = await context.__aenter__()
+            logger.info(f"Контекст streamablehttp_client открыт для {mm_user_id}")
             
             # Создаем сессию
+            logger.info(f"Создание ClientSession для {mm_user_id}")
             session = ClientSession(read_stream, write_stream)
             await session.__aenter__()
+            logger.info(f"ClientSession открыт для {mm_user_id}")
             
             # Инициализируем соединение
-            await session.initialize()
+            logger.info(f"Инициализация MCP сессии для {mm_user_id}")
+            try:
+                await session.initialize()
+                logger.info(f"MCP сессия инициализирована для {mm_user_id}")
+            except Exception as init_error:
+                logger.error(f"Ошибка при инициализации MCP сессии для {mm_user_id}: {init_error}", exc_info=True)
+                raise
             
             # Сохраняем сессию и контекст
             self._user_sessions[mm_user_id] = session
