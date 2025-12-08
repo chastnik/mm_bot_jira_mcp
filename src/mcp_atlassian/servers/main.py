@@ -289,7 +289,41 @@ class UserTokenMiddleware(BaseHTTPMiddleware):
                 logger.debug(
                     f"UserTokenMiddleware: MCP-Session-ID header found: {mcp_session_id}"
                 )
-            if auth_header and auth_header.startswith("Bearer "):
+            if auth_header and auth_header.startswith("Basic "):
+                # Поддержка Basic Auth для username:password - проверяем ПЕРВЫМ
+                import base64
+                try:
+                    encoded = auth_header.split(" ", 1)[1].strip()
+                    logger.info(
+                        f"UserTokenMiddleware.dispatch: Basic auth header found, encoded length: {len(encoded)}"
+                    )
+                    decoded = base64.b64decode(encoded).decode("utf-8")
+                    if ":" not in decoded:
+                        logger.error(f"Invalid Basic auth format: no colon in decoded string")
+                        return JSONResponse(
+                            {"error": "Unauthorized: Invalid Basic auth format"},
+                            status_code=401,
+                        )
+                    username, password = decoded.split(":", 1)
+                    logger.info(
+                        f"UserTokenMiddleware.dispatch: Basic auth extracted for user: {username}"
+                    )
+                    # Сохраняем username и password для использования в dependencies
+                    request.state.user_atlassian_username = username
+                    request.state.user_atlassian_password = password
+                    request.state.user_atlassian_auth_type = "basic"
+                    request.state.user_atlassian_token = None
+                    request.state.user_atlassian_email = username
+                    logger.info(
+                        "UserTokenMiddleware.dispatch: Set request.state for Basic auth."
+                    )
+                except Exception as e:
+                    logger.error(f"Error decoding Basic auth: {e}", exc_info=True)
+                    return JSONResponse(
+                        {"error": f"Unauthorized: Invalid Basic auth encoding: {str(e)}"},
+                        status_code=401,
+                    )
+            elif auth_header and auth_header.startswith("Bearer "):
                 token = auth_header.split(" ", 1)[1].strip()
                 if not token:
                     return JSONResponse(
@@ -325,7 +359,7 @@ class UserTokenMiddleware(BaseHTTPMiddleware):
                 logger.debug(
                     "UserTokenMiddleware.dispatch: Set request.state for PAT auth."
                 )
-            elif auth_header and auth_header.startswith("Basic "):
+            elif auth_header:
                 # Поддержка Basic Auth для username:password
                 import base64
                 try:
