@@ -135,6 +135,18 @@ class MCPClient:
                 logger.info(f"MCP сессия инициализирована для {mm_user_id}")
             except Exception as init_error:
                 logger.error(f"Ошибка при инициализации MCP сессии для {mm_user_id}: {init_error}", exc_info=True)
+                # Закрываем сессию и контекст при ошибке
+                try:
+                    await session.__aexit__(None, None, None)
+                except Exception:
+                    pass
+                try:
+                    await context.__aexit__(None, None, None)
+                except Exception:
+                    pass
+                # Удаляем из словарей
+                self._user_sessions.pop(mm_user_id, None)
+                self._user_contexts.pop(mm_user_id, None)
                 raise
             
             # Сохраняем сессию и контекст
