@@ -360,40 +360,6 @@ class UserTokenMiddleware(BaseHTTPMiddleware):
                     "UserTokenMiddleware.dispatch: Set request.state for PAT auth."
                 )
             elif auth_header:
-                # Поддержка Basic Auth для username:password
-                import base64
-                try:
-                    encoded = auth_header.split(" ", 1)[1].strip()
-                    logger.debug(
-                        f"UserTokenMiddleware.dispatch: Basic auth header found, encoded length: {len(encoded)}"
-                    )
-                    decoded = base64.b64decode(encoded).decode("utf-8")
-                    if ":" not in decoded:
-                        logger.error(f"Invalid Basic auth format: no colon in decoded string")
-                        return JSONResponse(
-                            {"error": "Unauthorized: Invalid Basic auth format"},
-                            status_code=401,
-                        )
-                    username, password = decoded.split(":", 1)
-                    logger.debug(
-                        f"UserTokenMiddleware.dispatch: Basic auth extracted for user: {username}"
-                    )
-                    # Сохраняем username и password для использования в dependencies
-                    request.state.user_atlassian_username = username
-                    request.state.user_atlassian_password = password
-                    request.state.user_atlassian_auth_type = "basic"
-                    request.state.user_atlassian_token = None
-                    request.state.user_atlassian_email = username
-                    logger.debug(
-                        "UserTokenMiddleware.dispatch: Set request.state for Basic auth."
-                    )
-                except Exception as e:
-                    logger.error(f"Error decoding Basic auth: {e}", exc_info=True)
-                    return JSONResponse(
-                        {"error": f"Unauthorized: Invalid Basic auth encoding: {str(e)}"},
-                        status_code=401,
-                    )
-            elif auth_header:
                 logger.warning(
                     f"Unsupported Authorization type for {request.url.path}: {auth_header.split(' ', 1)[0] if ' ' in auth_header else 'UnknownType'}"
                 )
