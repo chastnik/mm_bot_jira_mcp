@@ -368,8 +368,13 @@ class UserTokenMiddleware(BaseHTTPMiddleware):
             )
         response = await call_next(request)
         logger.debug(
-            f"UserTokenMiddleware.dispatch: EXITED for request path='{request.url.path}'"
+            f"UserTokenMiddleware.dispatch: EXITED for request path='{request.url.path}', response status={response.status_code}"
         )
+        if response.status_code == 401:
+            logger.warning(
+                f"UserTokenMiddleware.dispatch: 401 Unauthorized returned for path='{request.url.path}', method='{request.method}'. "
+                f"Auth header present: {bool(request.headers.get('Authorization'))}"
+            )
         return response
 
 
