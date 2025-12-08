@@ -198,6 +198,10 @@ class AtlassianMCP(FastMCP[MainAppContext]):
         app = super().http_app(
             path=path, middleware=final_middleware_list, transport=transport
         )
+        # Добавляем обработчик health check
+        from starlette.routing import Route
+        app.routes.append(Route("/healthz", health_check, methods=["GET"]))
+        logger.info(f"http_app: Создан HTTP app с middleware, path={path}, transport={transport}")
         return app
 
 
