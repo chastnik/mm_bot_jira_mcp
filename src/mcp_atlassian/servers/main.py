@@ -229,10 +229,11 @@ class UserTokenMiddleware(BaseHTTPMiddleware):
     async def dispatch(
         self, request: Request, call_next: RequestResponseEndpoint
     ) -> JSONResponse:
-        # Логируем ВСЕ запросы для отладки
+        # Логируем ВСЕ запросы для отладки - ВСЕГДА, даже если путь не совпадает
         logger.info(
             f"UserTokenMiddleware.dispatch: ENTERED for request path='{request.url.path}', method='{request.method}', "
-            f"headers={dict(request.headers)}"
+            f"Authorization header present: {bool(request.headers.get('Authorization'))}, "
+            f"all headers keys: {list(request.headers.keys())}"
         )
         mcp_server_instance = self.mcp_server_ref
         if mcp_server_instance is None:
