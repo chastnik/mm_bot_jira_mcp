@@ -26,6 +26,9 @@ dependencies = [
     "keyring>=25.6.0",
     "cachetools>=5.0.0",
     "types-cachetools>=5.5.0.20240820",
+    "mattermostdriver>=7.0.0",
+    "cryptography>=42.0.0",
+    "openai>=1.0.0",
 ]
 [[project.authors]]
 name = "sooperset"
@@ -37,6 +40,7 @@ build-backend = "hatchling.build"
 
 [project.scripts]
 mcp-atlassian = "mcp_atlassian:main"
+mattermost-bot = "mattermost_bot.__main__:main"
 
 [dependency-groups]
 dev = [

@@ -1,158 +1,274 @@
 # MCP Atlassian
 
-![PyPI Version](https://img.shields.io/pypi/v/mcp-atlassian)
-![PyPI - Downloads](https://img.shields.io/pypi/dm/mcp-atlassian)
-![PePy - Total Downloads](https://static.pepy.tech/personalized-badge/mcp-atlassian?period=total&units=international_system&left_color=grey&right_color=blue&left_text=Total%20Downloads)
-[![Run Tests](https://github.com/sooperset/mcp-atlassian/actions/workflows/tests.yml/badge.svg)](https://github.com/sooperset/mcp-atlassian/actions/workflows/tests.yml)
-![License](https://img.shields.io/github/license/sooperset/mcp-atlassian)
+Сервер Model Context Protocol (MCP) для продуктов Atlassian (Confluence и Jira). Эта интеграция поддерживает развертывания как Confluence & Jira Cloud, так и Server/Data Center.
 
-Model Context Protocol (MCP) server for Atlassian products (Confluence and Jira). This integration supports both Confluence & Jira Cloud and Server/Data Center deployments.
+## 🤖 Mattermost Бот
 
-## Example Usage
+Этот проект включает в себя бота для Mattermost, который позволяет пользователям взаимодействовать с Jira и Confluence через личные сообщения в Mattermost, используя локальную LLM и встроенный MCP сервер.
 
-Ask your AI assistant to:
+### Возможности Mattermost бота
 
-- **📝 Automatic Jira Updates** - "Update Jira from our meeting notes"
-- **🔍 AI-Powered Confluence Search** - "Find our OKR guide in Confluence and summarize it"
-- **🐛 Smart Jira Issue Filtering** - "Show me urgent bugs in PROJ project from last week"
-- **📄 Content Creation & Management** - "Create a tech design doc for XYZ feature"
+- **Личные сообщения**: Бот работает только в личных сообщениях для обеспечения конфиденциальности
+- **Безопасное хранение**: Учетные данные пользователей хранятся в зашифрованном виде в SQLite базе данных
+- **Индивидуальная аутентификация**: Каждый пользователь работает со своими учетными данными Jira и Confluence
+- **Интеграция с LLM**: Использует локальную LLM (LM Studio) для обработки запросов
+- **MCP сервер**: Встроенный MCP сервер для доступа к инструментам Jira и Confluence
 
-### Feature Demo
+### Быстрый старт Mattermost бота
+
+#### 1. Установка зависимостей
+
+```bash
+uv sync --frozen --all-extras --dev
+```
+
+#### 2. Настройка переменных окружения
+
+Скопируйте `.env.example` в `.env` и заполните необходимые переменные:
+
+```bash
+cp .env.example .env
+```
+
+Обязательные переменные для бота:
+- `MATTERMOST_URL` - URL вашего Mattermost сервера
+- `MATTERMOST_TOKEN` - Токен бота (создайте бота в Mattermost)
+- `LLM_API_URL` - URL локальной LLM (например, http://localhost:1234/v1 для LM Studio)
+- `JIRA_URL` - URL вашего Jira сервера
+- `CONFLUENCE_URL` - URL вашего Confluence сервера (опционально)
+
+#### 3. Создание бота в Mattermost
+
+1. Войдите в Mattermost как администратор
+2. Перейдите в **Settings → Integrations → Bot Accounts**
+3. Нажмите **Add Bot Account**
+4. Заполните информацию о боте:
+   - **Username**: например, `jira-bot`
+   - **Display Name**: например, `Jira & Confluence Bot`
+   - **Description**: описание бота
+5. Сохраните и скопируйте **Access Token**
+6. Добавьте токен в `.env` файл как `MATTERMOST_TOKEN`
+
+#### 4. Запуск бота
+
+```bash
+uv run mattermost-bot
+```
+
+Или используя Python напрямую:
+
+```bash
+uv run python -m mattermost_bot
+```
+
+### Использование бота
+
+#### Первое взаимодействие
+
+1. Откройте личное сообщение с ботом в Mattermost
+2. Отправьте любое сообщение (например, `/start` или "привет")
+3. Бот покажет справку и начнет процесс настройки учетных данных
+
+#### Настройка учетных данных
+
+Бот проведет вас через процесс настройки:
+
+1. **Jira**: Введите логин и пароль для Jira
+2. **Confluence** (если настроен): Введите логин и пароль для Confluence
+
+Учетные данные проверяются перед сохранением и хранятся в зашифрованном виде.
+
+#### Примеры запросов
+
+После настройки учетных данных вы можете задавать вопросы:
+
+- "Покажи мои открытые задачи в Jira"
+- "Найди информацию о проекте PROJ в Confluence"
+- "Создай задачу в Jira с названием 'Новая задача'"
+- "Покажи все задачи, назначенные на меня"
+
+### Безопасность
+
+- **Шифрование паролей**: Все пароли хранятся в зашифрованном виде с использованием AES-256
+- **Изоляция данных**: Каждый пользователь работает только со своими учетными данными
+- **Локальная LLM**: Все запросы обрабатываются локально, данные не отправляются в облако
+- **Безопасное хранение**: Ключ шифрования хранится отдельно от базы данных
+
+### Конфигурация
+
+Подробную информацию о всех переменных окружения см. в файле `.env.example`.
+
+### Устранение неполадок
+
+#### Бот не отвечает
+
+- Проверьте, что бот запущен и подключен к Mattermost
+- Убедитесь, что токен бота правильный
+- Проверьте логи бота на наличие ошибок
+
+#### Ошибки аутентификации
+
+- Убедитесь, что логин и пароль правильные
+- Проверьте, что Jira/Confluence сервер доступен
+- Для локальных серверов убедитесь, что SSL сертификаты настроены правильно
+
+#### Проблемы с LLM
+
+- Убедитесь, что LM Studio запущен и доступен по указанному URL
+- Проверьте, что модель загружена в LM Studio
+- Убедитесь, что `LLM_API_URL` указывает на правильный адрес
+
+### Дополнительная информация
+
+Бот использует встроенный MCP сервер для доступа к инструментам Jira и Confluence. MCP сервер запускается автоматически при старте бота на порту 8000.
+
+---
+
+## Примеры использования
+
+Попросите вашего AI-ассистента:
+
+- **📝 Автоматические обновления Jira** - "Обнови Jira из наших заметок встречи"
+- **🔍 Поиск в Confluence с помощью AI** - "Найди наш OKR гайд в Confluence и суммируй его"
+- **🐛 Умная фильтрация задач Jira** - "Покажи мне срочные баги в проекте PROJ за последнюю неделю"
+- **📄 Создание и управление контентом** - "Создай технический документ для функции XYZ"
+
+### Демонстрация возможностей
 
 https://github.com/user-attachments/assets/35303504-14c6-4ae4-913b-7c25ea511c3e
 
-<details> <summary>Confluence Demo</summary>
+<details> <summary>Демонстрация Confluence</summary>
 
 https://github.com/user-attachments/assets/7fe9c488-ad0c-4876-9b54-120b666bb785
 
 </details>
 
-### Compatibility
+### Совместимость
 
-| Product        | Deployment Type    | Support Status              |
+| Продукт        | Тип развертывания  | Статус поддержки            |
 |----------------|--------------------|-----------------------------|
-| **Confluence** | Cloud              | ✅ Fully supported           |
-| **Confluence** | Server/Data Center | ✅ Supported (version 6.0+)  |
-| **Jira**       | Cloud              | ✅ Fully supported           |
-| **Jira**       | Server/Data Center | ✅ Supported (version 8.14+) |
+| **Confluence** | Cloud              | ✅ Полностью поддерживается  |
+| **Confluence** | Server/Data Center | ✅ Поддерживается (версия 6.0+)  |
+| **Jira**       | Cloud              | ✅ Полностью поддерживается  |
+| **Jira**       | Server/Data Center | ✅ Поддерживается (версия 8.14+) |
 
-## Quick Start Guide
+## Руководство по быстрому старту
 
-### 🔐 1. Authentication Setup
+### 🔐 1. Настройка аутентификации
 
-MCP Atlassian supports three authentication methods:
+MCP Atlassian поддерживает три метода аутентификации:
 
-#### A. API Token Authentication (Cloud) - **Recommended**
+#### A. Аутентификация через API Token (Cloud) - **Рекомендуется**
 
-1. Go to https://id.atlassian.com/manage-profile/security/api-tokens
-2. Click **Create API token**, name it
-3. Copy the token immediately
+1. Перейдите на https://id.atlassian.com/manage-profile/security/api-tokens
+2. Нажмите **Create API token**, назовите его
+3. Немедленно скопируйте токен
 
 #### B. Personal Access Token (Server/Data Center)
 
-1. Go to your profile (avatar) → **Profile** → **Personal Access Tokens**
-2. Click **Create token**, name it, set expiry
-3. Copy the token immediately
+1. Перейдите в ваш профиль (аватар) → **Profile** → **Personal Access Tokens**
+2. Нажмите **Create token**, назовите его, установите срок действия
+3. Немедленно скопируйте токен
 
-#### C. OAuth 2.0 Authentication (Cloud) - **Advanced**
+#### C. Аутентификация OAuth 2.0 (Cloud) - **Продвинутый**
 
 > [!NOTE]
-> OAuth 2.0 is more complex to set up but provides enhanced security features. For most users, API Token authentication (Method A) is simpler and sufficient.
+> OAuth 2.0 более сложен в настройке, но обеспечивает повышенную безопасность. Для большинства пользователей аутентификация через API Token (Метод A) проще и достаточна.
 
-1. Go to [Atlassian Developer Console](https://developer.atlassian.com/console/myapps/)
-2. Create an "OAuth 2.0 (3LO) integration" app
-3. Configure **Permissions** (scopes) for Jira/Confluence
-4. Set **Callback URL** (e.g., `http://localhost:8080/callback`)
-5. Run setup wizard:
+1. Перейдите в [Atlassian Developer Console](https://developer.atlassian.com/console/myapps/)
+2. Создайте приложение "OAuth 2.0 (3LO) integration"
+3. Настройте **Permissions** (области видимости) для Jira/Confluence
+4. Установите **Callback URL** (например, `http://localhost:8080/callback`)
+5. Запустите мастер настройки:
    ```bash
    docker run --rm -i \
      -p 8080:8080 \
      -v "${HOME}/.mcp-atlassian:/home/app/.mcp-atlassian" \
      ghcr.io/sooperset/mcp-atlassian:latest --oauth-setup -v
    ```
-6. Follow prompts for `Client ID`, `Secret`, `URI`, and `Scope`
-7. Complete browser authorization
-8. Add obtained credentials to `.env` or IDE config:
-   - `ATLASSIAN_OAUTH_CLOUD_ID` (from wizard)
+6. Следуйте подсказкам для `Client ID`, `Secret`, `URI` и `Scope`
+7. Завершите авторизацию в браузере
+8. Добавьте полученные учетные данные в `.env` или конфигурацию IDE:
+   - `ATLASSIAN_OAUTH_CLOUD_ID` (из мастера)
    - `ATLASSIAN_OAUTH_CLIENT_ID`
    - `ATLASSIAN_OAUTH_CLIENT_SECRET`
    - `ATLASSIAN_OAUTH_REDIRECT_URI`
    - `ATLASSIAN_OAUTH_SCOPE`
 
 > [!IMPORTANT]
-> For the standard OAuth flow described above, include `offline_access` in your scope (e.g., `read:jira-work write:jira-work offline_access`). This allows the server to refresh the access token automatically.
+> Для стандартного потока OAuth, описанного выше, включите `offline_access` в вашу область видимости (например, `read:jira-work write:jira-work offline_access`). Это позволяет серверу автоматически обновлять access token.
 
 <details>
-<summary>Alternative: Using a Pre-existing OAuth Access Token (BYOT)</summary>
+<summary>Альтернатива: Использование предсуществующего OAuth Access Token (BYOT)</summary>
 
-If you are running mcp-atlassian part of a larger system that manages Atlassian OAuth 2.0 access tokens externally (e.g., through a central identity provider or another application), you can provide an access token directly to this MCP server. This method bypasses the interactive setup wizard and the server's internal token management (including refresh capabilities).
+Если вы запускаете mcp-atlassian как часть более крупной системы, которая управляет Atlassian OAuth 2.0 access токенами внешне (например, через центральный провайдер идентификации или другое приложение), вы можете предоставить access token напрямую этому MCP серверу. Этот метод обходит интерактивный мастер настройки и внутреннее управление токенами сервера (включая возможности обновления).
 
-**Requirements:**
-- A valid Atlassian OAuth 2.0 Access Token with the necessary scopes for the intended operations.
-- The corresponding `ATLASSIAN_OAUTH_CLOUD_ID` for your Atlassian instance.
+**Требования:**
+- Действительный Atlassian OAuth 2.0 Access Token с необходимыми областями видимости для планируемых операций.
+- Соответствующий `ATLASSIAN_OAUTH_CLOUD_ID` для вашего инстанса Atlassian.
 
-**Configuration:**
-To use this method, set the following environment variables (or use the corresponding command-line flags when starting the server):
-- `ATLASSIAN_OAUTH_CLOUD_ID`: Your Atlassian Cloud ID. (CLI: `--oauth-cloud-id`)
-- `ATLASSIAN_OAUTH_ACCESS_TOKEN`: Your pre-existing OAuth 2.0 access token. (CLI: `--oauth-access-token`)
+**Конфигурация:**
+Для использования этого метода установите следующие переменные окружения (или используйте соответствующие флаги командной строки при запуске сервера):
+- `ATLASSIAN_OAUTH_CLOUD_ID`: Ваш Atlassian Cloud ID. (CLI: `--oauth-cloud-id`)
+- `ATLASSIAN_OAUTH_ACCESS_TOKEN`: Ваш предсуществующий OAuth 2.0 access token. (CLI: `--oauth-access-token`)
 
-**Important Considerations for BYOT:**
-- **Token Lifecycle Management:** When using BYOT, the MCP server **does not** handle token refresh. The responsibility for obtaining, refreshing (before expiry), and revoking the access token lies entirely with you or the external system providing the token.
-- **Unused Variables:** The standard OAuth client variables (`ATLASSIAN_OAUTH_CLIENT_ID`, `ATLASSIAN_OAUTH_CLIENT_SECRET`, `ATLASSIAN_OAUTH_REDIRECT_URI`, `ATLASSIAN_OAUTH_SCOPE`) are **not** used and can be omitted when configuring for BYOT.
-- **No Setup Wizard:** The `--oauth-setup` wizard is not applicable and should not be used for this approach.
-- **No Token Cache Volume:** The Docker volume mount for token storage (e.g., `-v "${HOME}/.mcp-atlassian:/home/app/.mcp-atlassian"`) is also not necessary if you are exclusively using the BYOT method, as no tokens are stored or managed by this server.
-- **Scope:** The provided access token must already have the necessary permissions (scopes) for the Jira/Confluence operations you intend to perform.
+**Важные соображения для BYOT:**
+- **Управление жизненным циклом токена:** При использовании BYOT MCP сервер **не** обрабатывает обновление токена. Ответственность за получение, обновление (перед истечением срока) и отзыв access token полностью лежит на вас или внешней системе, предоставляющей токен.
+- **Неиспользуемые переменные:** Стандартные переменные OAuth клиента (`ATLASSIAN_OAUTH_CLIENT_ID`, `ATLASSIAN_OAUTH_CLIENT_SECRET`, `ATLASSIAN_OAUTH_REDIRECT_URI`, `ATLASSIAN_OAUTH_SCOPE`) **не** используются и могут быть опущены при настройке для BYOT.
+- **Нет мастера настройки:** Мастер `--oauth-setup` не применим и не должен использоваться для этого подхода.
+- **Нет тома кэша токенов:** Монтирование тома Docker для хранения токенов (например, `-v "${HOME}/.mcp-atlassian:/home/app/.mcp-atlassian"`) также не необходимо, если вы используете исключительно метод BYOT, так как токены не хранятся и не управляются этим сервером.
+- **Область видимости:** Предоставленный access token уже должен иметь необходимые разрешения (области видимости) для операций Jira/Confluence, которые вы планируете выполнять.
 
-This option is useful in scenarios where OAuth credential management is centralized or handled by other infrastructure components.
+Эта опция полезна в сценариях, где управление учетными данными OAuth централизовано или обрабатывается другими компонентами инфраструктуры.
 </details>
 
 > [!TIP]
-> **Multi-Cloud OAuth Support**: If you're building a multi-tenant application where users provide their own OAuth tokens, see the [Multi-Cloud OAuth Support](#multi-cloud-oauth-support) section for minimal configuration setup.
+> **Поддержка Multi-Cloud OAuth**: Если вы создаете multi-tenant приложение, где пользователи предоставляют свои собственные OAuth токены, см. раздел [Поддержка Multi-Cloud OAuth](#multi-cloud-oauth-support) для минимальной настройки конфигурации.
 
-### 📦 2. Installation
+### 📦 2. Установка
 
-MCP Atlassian is distributed as a Docker image. This is the recommended way to run the server, especially for IDE integration. Ensure you have Docker installed.
+MCP Atlassian распространяется как Docker образ. Это рекомендуемый способ запуска сервера, особенно для интеграции с IDE. Убедитесь, что у вас установлен Docker.
 
 ```bash
-# Pull Pre-built Image
+# Загрузить предсобранный образ
 docker pull ghcr.io/sooperset/mcp-atlassian:latest
 ```
 
-## 🛠️ IDE Integration
+## 🛠️ Интеграция с IDE
 
-MCP Atlassian is designed to be used with AI assistants through IDE integration.
+MCP Atlassian разработан для использования с AI-ассистентами через интеграцию с IDE.
 
 > [!TIP]
-> **For Claude Desktop**: Locate and edit the configuration file directly:
+> **Для Claude Desktop**: Найдите и отредактируйте файл конфигурации напрямую:
 > - **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
 > - **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
 > - **Linux**: `~/.config/Claude/claude_desktop_config.json`
 >
-> **For Cursor**: Open Settings → MCP → + Add new global MCP server
+> **Для Cursor**: Откройте Settings → MCP → + Add new global MCP server
 
-### ⚙️ Configuration Methods
+### ⚙️ Методы конфигурации
 
-There are two main approaches to configure the Docker container:
+Существует два основных подхода для настройки Docker контейнера:
 
-1. **Passing Variables Directly** (shown in examples below)
-2. **Using an Environment File** with `--env-file` flag (shown in collapsible sections)
+1. **Передача переменных напрямую** (показано в примерах ниже)
+2. **Использование файла окружения** с флагом `--env-file` (показано в сворачиваемых разделах)
 
 > [!NOTE]
-> Common environment variables include:
+> Общие переменные окружения включают:
 >
-> - `CONFLUENCE_SPACES_FILTER`: Filter by space keys (e.g., "DEV,TEAM,DOC")
-> - `JIRA_PROJECTS_FILTER`: Filter by project keys (e.g., "PROJ,DEV,SUPPORT")
-> - `READ_ONLY_MODE`: Set to "true" to disable write operations
-> - `MCP_VERBOSE`: Set to "true" for more detailed logging
-> - `MCP_LOGGING_STDOUT`: Set to "true" to log to stdout instead of stderr
-> - `ENABLED_TOOLS`: Comma-separated list of tool names to enable (e.g., "confluence_search,jira_get_issue")
+> - `CONFLUENCE_SPACES_FILTER`: Фильтр по ключам пространств (например, "DEV,TEAM,DOC")
+> - `JIRA_PROJECTS_FILTER`: Фильтр по ключам проектов (например, "PROJ,DEV,SUPPORT")
+> - `READ_ONLY_MODE`: Установите "true" для отключения операций записи
+> - `MCP_VERBOSE`: Установите "true" для более подробного логирования
+> - `MCP_LOGGING_STDOUT`: Установите "true" для логирования в stdout вместо stderr
+> - `ENABLED_TOOLS`: Список названий инструментов через запятую для включения (например, "confluence_search,jira_get_issue")
 >
-> See the [.env.example](https://github.com/sooperset/mcp-atlassian/blob/main/.env.example) file for all available options.
+> См. файл [.env.example](https://github.com/sooperset/mcp-atlassian/blob/main/.env.example) для всех доступных опций.
 
 
-### 📝 Configuration Examples
+### 📝 Примеры конфигурации
 
-**Method 1 (Passing Variables Directly):**
+**Метод 1 (Передача переменных напрямую):**
 ```json
 {
   "mcpServers": {
@@ -184,7 +300,7 @@ There are two main approaches to configure the Docker container:
 ```
 
 <details>
-<summary>Alternative: Using Environment File</summary>
+<summary>Альтернатива: Использование файла окружения</summary>
 
 ```json
 {
@@ -206,9 +322,9 @@ There are two main approaches to configure the Docker container:
 </details>
 
 <details>
-<summary>Server/Data Center Configuration</summary>
+<summary>Конфигурация для Server/Data Center</summary>
 
-For Server/Data Center deployments, use direct variable passing:
+Для развертываний Server/Data Center используйте прямую передачу переменных:
 
 ```json
 {
@@ -241,19 +357,19 @@ For Server/Data Center deployments, use direct variable passing:
 ```
 
 > [!NOTE]
-> Set `CONFLUENCE_SSL_VERIFY` and `JIRA_SSL_VERIFY` to "false" only if you have self-signed certificates.
+> Установите `CONFLUENCE_SSL_VERIFY` и `JIRA_SSL_VERIFY` в "false" только если у вас самоподписанные сертификаты.
 
 </details>
 
 <details>
-<summary>OAuth 2.0 Configuration (Cloud Only)</summary>
+<summary>Конфигурация OAuth 2.0 (Только для Cloud)</summary>
 <a name="oauth-20-configuration-example-cloud-only"></a>
 
-These examples show how to configure `mcp-atlassian` in your IDE (like Cursor or Claude Desktop) when using OAuth 2.0 for Atlassian Cloud.
+Эти примеры показывают, как настроить `mcp-atlassian` в вашей IDE (например, Cursor или Claude Desktop) при использовании OAuth 2.0 для Atlassian Cloud.
 
-**Example for Standard OAuth 2.0 Flow (using Setup Wizard):**
+**Пример для стандартного потока OAuth 2.0 (с использованием мастера настройки):**
 
-This configuration is for when you use the server's built-in OAuth client and have completed the [OAuth setup wizard](#c-oauth-20-authentication-cloud---advanced).
+Эта конфигурация для случая, когда вы используете встроенный OAuth клиент сервера и завершили [мастер настройки OAuth](#c-oauth-20-authentication-cloud---advanced).
 
 ```json
 {
@@ -289,15 +405,15 @@ This configuration is for when you use the server's built-in OAuth client and ha
 ```
 
 > [!NOTE]
-> - For the Standard Flow:
->   - `ATLASSIAN_OAUTH_CLOUD_ID` is obtained from the `--oauth-setup` wizard output or is known for your instance.
->   - Other `ATLASSIAN_OAUTH_*` client variables are from your OAuth app in the Atlassian Developer Console.
->   - `JIRA_URL` and `CONFLUENCE_URL` for your Cloud instances are always required.
->   - The volume mount (`-v .../.mcp-atlassian:/home/app/.mcp-atlassian`) is crucial for persisting the OAuth tokens obtained by the wizard, enabling automatic refresh.
+> - Для стандартного потока:
+>   - `ATLASSIAN_OAUTH_CLOUD_ID` получается из вывода мастера `--oauth-setup` или известен для вашего инстанса.
+>   - Другие переменные клиента `ATLASSIAN_OAUTH_*` из вашего OAuth приложения в Atlassian Developer Console.
+>   - `JIRA_URL` и `CONFLUENCE_URL` для ваших Cloud инстансов всегда требуются.
+>   - Монтирование тома (`-v .../.mcp-atlassian:/home/app/.mcp-atlassian`) критично для сохранения OAuth токенов, полученных мастером, что позволяет автоматическое обновление.
 
-**Example for Pre-existing Access Token (BYOT - Bring Your Own Token):**
+**Пример для предсуществующего Access Token (BYOT - Bring Your Own Token):**
 
-This configuration is for when you are providing your own externally managed OAuth 2.0 access token.
+Эта конфигурация для случая, когда вы предоставляете свой собственный внешне управляемый OAuth 2.0 access token.
 
 ```json
 {
@@ -326,23 +442,23 @@ This configuration is for when you are providing your own externally managed OAu
 ```
 
 > [!NOTE]
-> - For the BYOT Method:
->   - You primarily need `JIRA_URL`, `CONFLUENCE_URL`, `ATLASSIAN_OAUTH_CLOUD_ID`, and `ATLASSIAN_OAUTH_ACCESS_TOKEN`.
->   - Standard OAuth client variables (`ATLASSIAN_OAUTH_CLIENT_ID`, `CLIENT_SECRET`, `REDIRECT_URI`, `SCOPE`) are **not** used.
->   - Token lifecycle (e.g., refreshing the token before it expires and restarting mcp-atlassian) is your responsibility, as the server will not refresh BYOT tokens.
+> - Для метода BYOT:
+>   - Вам в основном нужны `JIRA_URL`, `CONFLUENCE_URL`, `ATLASSIAN_OAUTH_CLOUD_ID` и `ATLASSIAN_OAUTH_ACCESS_TOKEN`.
+>   - Стандартные переменные OAuth клиента (`ATLASSIAN_OAUTH_CLIENT_ID`, `CLIENT_SECRET`, `REDIRECT_URI`, `SCOPE`) **не** используются.
+>   - Жизненный цикл токена (например, обновление токена перед истечением срока и перезапуск mcp-atlassian) - это ваша ответственность, так как сервер не будет обновлять BYOT токены.
 
 </details>
 
 <details>
-<summary>Proxy Configuration</summary>
+<summary>Конфигурация прокси</summary>
 
-MCP Atlassian supports routing API requests through standard HTTP/HTTPS/SOCKS proxies. Configure using environment variables:
+MCP Atlassian поддерживает маршрутизацию API запросов через стандартные HTTP/HTTPS/SOCKS прокси. Настройте с использованием переменных окружения:
 
-- Supports standard `HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY`, `SOCKS_PROXY`.
-- Service-specific overrides are available (e.g., `JIRA_HTTPS_PROXY`, `CONFLUENCE_NO_PROXY`).
-- Service-specific variables override global ones for that service.
+- Поддерживает стандартные `HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY`, `SOCKS_PROXY`.
+- Доступны переопределения для конкретного сервиса (например, `JIRA_HTTPS_PROXY`, `CONFLUENCE_NO_PROXY`).
+- Переменные для конкретного сервиса переопределяют глобальные для этого сервиса.
 
-Add the relevant proxy variables to the `args` (using `-e`) and `env` sections of your MCP configuration:
+Добавьте соответствующие переменные прокси в секции `args` (используя `-e`) и `env` вашей конфигурации MCP:
 
 ```json
 {
@@ -370,15 +486,15 @@ Add the relevant proxy variables to the `args` (using `-e`) and `env` sections o
 }
 ```
 
-Credentials in proxy URLs are masked in logs. If you set `NO_PROXY`, it will be respected for requests to matching hosts.
+Учетные данные в URL прокси маскируются в логах. Если вы установите `NO_PROXY`, это будет учитываться для запросов к соответствующим хостам.
 
 </details>
 <details>
-<summary>Custom HTTP Headers Configuration</summary>
+<summary>Конфигурация пользовательских HTTP заголовков</summary>
 
-MCP Atlassian supports adding custom HTTP headers to all API requests. This feature is particularly useful in corporate environments where additional headers are required for security, authentication, or routing purposes.
+MCP Atlassian поддерживает добавление пользовательских HTTP заголовков ко всем API запросам. Эта функция особенно полезна в корпоративных средах, где требуются дополнительные заголовки для безопасности, аутентификации или целей маршрутизации.
 
-Custom headers are configured using environment variables with comma-separated key=value pairs:
+Пользовательские заголовки настраиваются с использованием переменных окружения с парами ключ=значение через запятую:
 
 ```json
 {
@@ -414,35 +530,35 @@ Custom headers are configured using environment variables with comma-separated k
 }
 ```
 
-**Security Considerations:**
+**Соображения безопасности:**
 
-- Custom header values are masked in debug logs to protect sensitive information
-- Ensure custom headers don't conflict with standard HTTP or Atlassian API headers
-- Avoid including sensitive authentication tokens in custom headers if already using basic auth or OAuth
-- Headers are sent with every API request - verify they don't interfere with API functionality
+- Значения пользовательских заголовков маскируются в отладочных логах для защиты конфиденциальной информации
+- Убедитесь, что пользовательские заголовки не конфликтуют со стандартными HTTP или Atlassian API заголовками
+- Избегайте включения конфиденциальных токенов аутентификации в пользовательские заголовки, если уже используете basic auth или OAuth
+- Заголовки отправляются с каждым API запросом - убедитесь, что они не мешают функциональности API
 
 </details>
 
 
 <details>
-<summary>Multi-Cloud OAuth Support</summary>
+<summary>Поддержка Multi-Cloud OAuth</summary>
 
-MCP Atlassian supports multi-cloud OAuth scenarios where each user connects to their own Atlassian cloud instance. This is useful for multi-tenant applications, chatbots, or services where users provide their own OAuth tokens.
+MCP Atlassian поддерживает сценарии multi-cloud OAuth, где каждый пользователь подключается к своему собственному инстансу Atlassian cloud. Это полезно для multi-tenant приложений, чат-ботов или сервисов, где пользователи предоставляют свои собственные OAuth токены.
 
-**Minimal OAuth Configuration:**
+**Минимальная конфигурация OAuth:**
 
-1. Enable minimal OAuth mode (no client credentials required):
+1. Включите минимальный режим OAuth (учетные данные клиента не требуются):
    ```bash
    docker run -e ATLASSIAN_OAUTH_ENABLE=true -p 9000:9000 \
      ghcr.io/sooperset/mcp-atlassian:latest \
      --transport streamable-http --port 9000
    ```
 
-2. Users provide authentication via HTTP headers:
+2. Пользователи предоставляют аутентификацию через HTTP заголовки:
    - `Authorization: Bearer <user_oauth_token>`
    - `X-Atlassian-Cloud-Id: <user_cloud_id>`
 
-**Example Integration (Python):**
+**Пример интеграции (Python):**
 ```python
 import asyncio
 from mcp.client.streamable_http import streamablehttp_client
@@ -452,7 +568,7 @@ user_token = "user-specific-oauth-token"
 user_cloud_id = "user-specific-cloud-id"
 
 async def main():
-    # Connect to streamable HTTP server with custom headers
+    # Подключение к streamable HTTP серверу с пользовательскими заголовками
     async with streamablehttp_client(
         "http://localhost:9000/mcp",
         headers={
@@ -460,12 +576,12 @@ async def main():
             "X-Atlassian-Cloud-Id": user_cloud_id
         }
     ) as (read_stream, write_stream, _):
-        # Create a session using the client streams
+        # Создание сессии с использованием потоков клиента
         async with ClientSession(read_stream, write_stream) as session:
-            # Initialize the connection
+            # Инициализация соединения
             await session.initialize()
 
-            # Example: Get a Jira issue
+            # Пример: Получить задачу Jira
             result = await session.call_tool(
                 "jira_get_issue",
                 {"issue_key": "PROJ-123"}
@@ -475,17 +591,17 @@ async def main():
 asyncio.run(main())
 ```
 
-**Configuration Notes:**
-- Each request can use a different cloud instance via the `X-Atlassian-Cloud-Id` header
-- User tokens are isolated per request - no cross-tenant data leakage
-- Falls back to global `ATLASSIAN_OAUTH_CLOUD_ID` if header not provided
-- Compatible with standard OAuth 2.0 bearer token authentication
+**Примечания по конфигурации:**
+- Каждый запрос может использовать другой cloud инстанс через заголовок `X-Atlassian-Cloud-Id`
+- Токены пользователей изолированы на запрос - нет утечки данных между тенантами
+- Возвращается к глобальному `ATLASSIAN_OAUTH_CLOUD_ID`, если заголовок не предоставлен
+- Совместимо со стандартной OAuth 2.0 bearer token аутентификацией
 
 </details>
 
-<details> <summary>Single Service Configurations</summary>
+<details> <summary>Конфигурации для одного сервиса</summary>
 
-**For Confluence Cloud only:**
+**Только для Confluence Cloud:**
 
 ```json
 {
@@ -511,7 +627,7 @@ asyncio.run(main())
 }
 ```
 
-For Confluence Server/DC, use:
+Для Confluence Server/DC используйте:
 ```json
 {
   "mcpServers": {
@@ -534,7 +650,7 @@ For Confluence Server/DC, use:
 }
 ```
 
-**For Jira Cloud only:**
+**Только для Jira Cloud:**
 
 ```json
 {
@@ -560,7 +676,7 @@ For Confluence Server/DC, use:
 }
 ```
 
-For Jira Server/DC, use:
+Для Jira Server/DC используйте:
 ```json
 {
   "mcpServers": {
@@ -585,41 +701,41 @@ For Jira Server/DC, use:
 
 </details>
 
-### 👥 HTTP Transport Configuration
+### 👥 Конфигурация HTTP транспорта
 
-Instead of using `stdio`, you can run the server as a persistent HTTP service using either:
-- `sse` (Server-Sent Events) transport at `/sse` endpoint
-- `streamable-http` transport at `/mcp` endpoint
+Вместо использования `stdio`, вы можете запустить сервер как постоянный HTTP сервис, используя:
+- `sse` (Server-Sent Events) транспорт на эндпоинте `/sse`
+- `streamable-http` транспорт на эндпоинте `/mcp`
 
-Both transport types support single-user and multi-user authentication:
+Оба типа транспорта поддерживают аутентификацию для одного пользователя и нескольких пользователей:
 
-**Authentication Options:**
-- **Single-User**: Use server-level authentication configured via environment variables
-- **Multi-User**: Each user provides their own authentication:
-  - Cloud: OAuth 2.0 Bearer tokens
+**Варианты аутентификации:**
+- **Один пользователь**: Используйте аутентификацию на уровне сервера, настроенную через переменные окружения
+- **Несколько пользователей**: Каждый пользователь предоставляет свою собственную аутентификацию:
+  - Cloud: OAuth 2.0 Bearer токены
   - Server/Data Center: Personal Access Tokens (PATs)
 
-<details> <summary>Basic HTTP Transport Setup</summary>
+<details> <summary>Базовая настройка HTTP транспорта</summary>
 
-1. Start the server with your chosen transport:
+1. Запустите сервер с выбранным транспортом:
 
     ```bash
-    # For SSE transport
+    # Для SSE транспорта
     docker run --rm -p 9000:9000 \
       --env-file /path/to/your/.env \
       ghcr.io/sooperset/mcp-atlassian:latest \
       --transport sse --port 9000 -vv
 
-    # OR for streamable-http transport
+    # ИЛИ для streamable-http транспорта
     docker run --rm -p 9000:9000 \
       --env-file /path/to/your/.env \
       ghcr.io/sooperset/mcp-atlassian:latest \
       --transport streamable-http --port 9000 -vv
     ```
 
-2. Configure your IDE (single-user example):
+2. Настройте вашу IDE (пример для одного пользователя):
 
-    **SSE Transport Example:**
+    **Пример SSE транспорта:**
     ```json
     {
       "mcpServers": {
@@ -630,7 +746,7 @@ Both transport types support single-user and multi-user authentication:
     }
     ```
 
-    **Streamable-HTTP Transport Example:**
+    **Пример Streamable-HTTP транспорта:**
     ```json
     {
       "mcpServers": {
@@ -642,11 +758,11 @@ Both transport types support single-user and multi-user authentication:
     ```
 </details>
 
-<details> <summary>Multi-User Authentication Setup</summary>
+<details> <summary>Настройка аутентификации для нескольких пользователей</summary>
 
-Here's a complete example of setting up multi-user authentication with streamable-HTTP transport:
+Вот полный пример настройки аутентификации для нескольких пользователей с streamable-HTTP транспортом:
 
-1. First, run the OAuth setup wizard to configure the server's OAuth credentials:
+1. Сначала запустите мастер настройки OAuth для настройки учетных данных OAuth сервера:
    ```bash
    docker run --rm -i \
      -p 8080:8080 \
@@ -654,7 +770,7 @@ Here's a complete example of setting up multi-user authentication with streamabl
      ghcr.io/sooperset/mcp-atlassian:latest --oauth-setup -v
    ```
 
-2. Start the server with streamable-HTTP transport:
+2. Запустите сервер с streamable-HTTP транспортом:
    ```bash
    docker run --rm -p 9000:9000 \
      --env-file /path/to/your/.env \
@@ -662,14 +778,14 @@ Here's a complete example of setting up multi-user authentication with streamabl
      --transport streamable-http --port 9000 -vv
    ```
 
-3. Configure your IDE's MCP settings:
+3. Настройте настройки MCP вашей IDE:
 
-**Choose the appropriate Authorization method for your Atlassian deployment:**
+**Выберите подходящий метод авторизации для вашего развертывания Atlassian:**
 
-- **Cloud (OAuth 2.0):** Use this if your organization is on Atlassian Cloud and you have an OAuth access token for each user.
-- **Server/Data Center (PAT):** Use this if you are on Atlassian Server or Data Center and each user has a Personal Access Token (PAT).
+- **Cloud (OAuth 2.0):** Используйте это, если ваша организация использует Atlassian Cloud и у вас есть OAuth access token для каждого пользователя.
+- **Server/Data Center (PAT):** Используйте это, если вы используете Atlassian Server или Data Center и у каждого пользователя есть Personal Access Token (PAT).
 
-**Cloud (OAuth 2.0) Example:**
+**Пример для Cloud (OAuth 2.0):**
 ```json
 {
   "mcpServers": {
@@ -683,7 +799,7 @@ Here's a complete example of setting up multi-user authentication with streamabl
 }
 ```
 
-**Server/Data Center (PAT) Example:**
+**Пример для Server/Data Center (PAT):**
 ```json
 {
   "mcpServers": {
@@ -697,7 +813,7 @@ Here's a complete example of setting up multi-user authentication with streamabl
 }
 ```
 
-4. Required environment variables in `.env`:
+4. Требуемые переменные окружения в `.env`:
    ```bash
    JIRA_URL=https://your-company.atlassian.net
    CONFLUENCE_URL=https://your-company.atlassian.net/wiki
@@ -709,36 +825,36 @@ Here's a complete example of setting up multi-user authentication with streamabl
    ```
 
 > [!NOTE]
-> - The server should have its own fallback authentication configured (e.g., via environment variables for API token, PAT, or its own OAuth setup using --oauth-setup). This is used if a request doesn't include user-specific authentication.
-> - **OAuth**: Each user needs their own OAuth access token from your Atlassian OAuth app.
-> - **PAT**: Each user provides their own Personal Access Token.
-> - **Multi-Cloud**: For OAuth users, optionally include `X-Atlassian-Cloud-Id` header to specify which Atlassian cloud instance to use
-> - The server will use the user's token for API calls when provided, falling back to server auth if not
-> - User tokens should have appropriate scopes for their needed operations
+> - Сервер должен иметь свою собственную резервную аутентификацию, настроенную (например, через переменные окружения для API токена, PAT или собственной настройки OAuth с использованием --oauth-setup). Это используется, если запрос не включает пользовательскую аутентификацию.
+> - **OAuth**: Каждому пользователю нужен свой собственный OAuth access token из вашего приложения Atlassian OAuth.
+> - **PAT**: Каждый пользователь предоставляет свой собственный Personal Access Token.
+> - **Multi-Cloud**: Для пользователей OAuth опционально включите заголовок `X-Atlassian-Cloud-Id` для указания, какой инстанс Atlassian cloud использовать
+> - Сервер будет использовать токен пользователя для API вызовов, когда он предоставлен, возвращаясь к аутентификации сервера, если нет
+> - Токены пользователей должны иметь соответствующие области видимости для необходимых операций
 
 </details>
 
-## Tools
+## Инструменты
 
-### Key Tools
+### Основные инструменты
 
-#### Jira Tools
+#### Инструменты Jira
 
-- `jira_get_issue`: Get details of a specific issue
-- `jira_search`: Search issues using JQL
-- `jira_create_issue`: Create a new issue
-- `jira_update_issue`: Update an existing issue
-- `jira_transition_issue`: Transition an issue to a new status
-- `jira_add_comment`: Add a comment to an issue
+- `jira_get_issue`: Получить детали конкретной задачи
+- `jira_search`: Поиск задач с использованием JQL
+- `jira_create_issue`: Создать новую задачу
+- `jira_update_issue`: Обновить существующую задачу
+- `jira_transition_issue`: Перевести задачу в новый статус
+- `jira_add_comment`: Добавить комментарий к задаче
 
-#### Confluence Tools
+#### Инструменты Confluence
 
-- `confluence_search`: Search Confluence content using CQL
-- `confluence_get_page`: Get content of a specific page
-- `confluence_create_page`: Create a new page
-- `confluence_update_page`: Update an existing page
+- `confluence_search`: Поиск контента Confluence с использованием CQL
+- `confluence_get_page`: Получить содержимое конкретной страницы
+- `confluence_create_page`: Создать новую страницу
+- `confluence_update_page`: Обновить существующую страницу
 
-<details> <summary>View All Tools</summary>
+<details> <summary>Просмотр всех инструментов</summary>
 
 | Operation | Jira Tools                          | Confluence Tools               |
 |-----------|-------------------------------------|--------------------------------|
@@ -865,15 +981,15 @@ type %APPDATA%\Claude\logs\mcp*.log | more
 - Keep .env files secure and private
 - See [SECURITY.md](SECURITY.md) for best practices
 
-## Contributing
+## Вклад в проект
 
-We welcome contributions to MCP Atlassian! If you'd like to contribute:
+Мы приветствуем вклад в MCP Atlassian! Если вы хотите внести вклад:
 
-1. Check out our [CONTRIBUTING.md](CONTRIBUTING.md) guide for detailed development setup instructions.
-2. Make changes and submit a pull request.
+1. Ознакомьтесь с нашим руководством [CONTRIBUTING.md](CONTRIBUTING.md) для подробных инструкций по настройке разработки.
+2. Внесите изменения и отправьте pull request.
 
-We use pre-commit hooks for code quality and follow semantic versioning for releases.
+Мы используем pre-commit хуки для качества кода и следуем семантическому версионированию для релизов.
 
-## License
+## Лицензия
 
-Licensed under MIT - see [LICENSE](LICENSE) file. This is not an official Atlassian product.
+Лицензировано под MIT - см. файл [LICENSE](LICENSE). Это не официальный продукт Atlassian.
