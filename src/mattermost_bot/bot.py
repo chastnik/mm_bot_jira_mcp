@@ -295,7 +295,8 @@ class MattermostBot:
             user = self.driver.users.get_user(user_id)
             username = user.get("username", "неизвестный")
 
-            logger.info(f"Получено сообщение от {username}: {message}")
+            logger.info(f"Получено сообщение от {username}")
+            logger.debug(f"Содержимое сообщения от {username}: {message}")
 
             # Обрабатываем сообщение асинхронно
             response = await self.handlers.handle_message(user_id, message)
