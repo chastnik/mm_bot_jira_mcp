@@ -63,6 +63,10 @@ class MCPClient:
         env["HOST"] = host
         env["MCP_LOGGING_STDOUT"] = "true"
         env["MCP_VERBOSE"] = "true"
+        # Включаем режим user-provided tokens для multi-user аутентификации
+        # Это позволяет показывать инструменты всем пользователям,
+        # а аутентификация происходит через заголовки Authorization
+        env["ATLASSIAN_OAUTH_ENABLE"] = "true"
 
         # Запускаем MCP сервер в отдельном процессе
         cmd = ["uv", "run", "mcp-atlassian"]

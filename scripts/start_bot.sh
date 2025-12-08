@@ -10,6 +10,36 @@ if [ ! -f .env ]; then
     exit 1
 fi
 
+# Очистка старых/зависших процессов
+cleanup_old_processes() {
+    echo "Проверка старых процессов..."
+    
+    # Завершаем процессы на порту 8000 (MCP сервер)
+    if lsof -ti:8000 >/dev/null 2>&1; then
+        echo "Найден процесс на порту 8000, завершаем..."
+        lsof -ti:8000 | xargs -r kill -9 2>/dev/null || true
+        sleep 1
+    fi
+    
+    # Завершаем старые процессы mcp-atlassian
+    if pgrep -f "mcp-atlassian" >/dev/null 2>&1; then
+        echo "Найдены старые процессы mcp-atlassian, завершаем..."
+        pkill -9 -f "mcp-atlassian" 2>/dev/null || true
+        sleep 1
+    fi
+    
+    # Завершаем старые процессы mattermost-bot
+    if pgrep -f "mattermost-bot" >/dev/null 2>&1; then
+        echo "Найдены старые процессы mattermost-bot, завершаем..."
+        pkill -9 -f "mattermost-bot" 2>/dev/null || true
+        sleep 1
+    fi
+    
+    echo "Очистка завершена"
+}
+
+cleanup_old_processes
+
 # Запускаем бота
 echo "Запуск Mattermost бота..."
 uv run mattermost-bot

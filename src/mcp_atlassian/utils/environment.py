@@ -59,6 +59,12 @@ def get_available_services() -> dict[str, bool | None]:
                 logger.info(
                     "Using Confluence Server/Data Center authentication (PAT or Basic Auth)"
                 )
+        # Check for minimal OAuth (user-provided tokens) when URL is set but no credentials
+        if not confluence_is_setup and os.getenv("ATLASSIAN_OAUTH_ENABLE", "").lower() in ("true", "1", "yes"):
+            confluence_is_setup = True
+            logger.info(
+                "Using Confluence minimal OAuth configuration - expecting user-provided tokens via headers"
+            )
     elif os.getenv("ATLASSIAN_OAUTH_ENABLE", "").lower() in ("true", "1", "yes"):
         confluence_is_setup = True
         logger.info(
@@ -112,6 +118,12 @@ def get_available_services() -> dict[str, bool | None]:
                 logger.info(
                     "Using Jira Server/Data Center authentication (PAT or Basic Auth)"
                 )
+        # Check for minimal OAuth (user-provided tokens) when URL is set but no credentials
+        if not jira_is_setup and os.getenv("ATLASSIAN_OAUTH_ENABLE", "").lower() in ("true", "1", "yes"):
+            jira_is_setup = True
+            logger.info(
+                "Using Jira minimal OAuth configuration - expecting user-provided tokens via headers"
+            )
     elif os.getenv("ATLASSIAN_OAUTH_ENABLE", "").lower() in ("true", "1", "yes"):
         jira_is_setup = True
         logger.info(

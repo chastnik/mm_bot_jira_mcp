@@ -133,17 +133,26 @@ class UsersMixin(JiraClient):
             else:
                 params["username"] = username
 
-            response = self.jira.user_find_by_user_string(**params, start=0, limit=1)
+            # Увеличиваем лимит для более точного поиска
+            response = self.jira.user_find_by_user_string(**params, start=0, limit=50)
             if not isinstance(response, list):
                 msg = f"Unexpected return value type from `jira.user_find_by_user_string`: {type(response)}"
                 logger.error(msg)
                 return None
 
+            username_lower = username.lower()
+            best_match = None
+            
             for user in response:
+                display_name = user.get("displayName", "").lower()
+                name = user.get("name", "").lower()
+                email = user.get("emailAddress", "").lower()
+                
+                # Точное совпадение - возвращаем сразу
                 if (
-                    user.get("displayName", "").lower() == username.lower()
-                    or user.get("name", "").lower() == username.lower()
-                    or user.get("emailAddress", "").lower() == username.lower()
+                    display_name == username_lower
+                    or name == username_lower
+                    or email == username_lower
                 ):
                     if self.config.is_cloud:
                         if "accountId" in user:
@@ -159,6 +168,38 @@ class UsersMixin(JiraClient):
                                 "Using 'key' as fallback for assignee name in Jira Data Center/Server"
                             )
                             return user["key"]
+                
+                # Частичное совпадение - сохраняем как лучший вариант
+                if best_match is None and (
+                    username_lower in display_name
+                    or username_lower in name
+                    or username_lower in email
+                    or display_name in username_lower
+                    or name in username_lower
+                ):
+                    best_match = user
+            
+            # Если нет точного совпадения, но есть частичное - используем его
+            if best_match:
+                logger.info(f"Using partial match for user '{username}': {best_match.get('displayName', best_match.get('name', 'unknown'))}")
+                if self.config.is_cloud:
+                    if "accountId" in best_match:
+                        return best_match["accountId"]
+                else:
+                    if "name" in best_match:
+                        return best_match["name"]
+                    elif "key" in best_match:
+                        return best_match["key"]
+            
+            # Если список не пустой, но совпадений нет - вернём первого (для Server/DC)
+            if response and not self.config.is_cloud:
+                first_user = response[0]
+                logger.info(f"No exact match found for '{username}', using first result: {first_user.get('displayName', first_user.get('name', 'unknown'))}")
+                if "name" in first_user:
+                    return first_user["name"]
+                elif "key" in first_user:
+                    return first_user["key"]
+            
             return None
         except Exception as e:
             logger.info(f"Error looking up user directly: {str(e)}")
@@ -239,16 +280,33 @@ class UsersMixin(JiraClient):
         # Server/DC: username, key, or email
         elif not self.config.is_cloud:
             if "@" in identifier:
-                api_kwargs["username"] = identifier
-                logger.debug(
-                    f"Determined param: username='{identifier}' (Server/DC email - might not work)"
-                )
+                # Для Server/DC email нужно сначала найти пользователя через поиск
+                resolved_name = self._lookup_user_directly(identifier)
+                if resolved_name:
+                    api_kwargs["username"] = resolved_name
+                    logger.debug(
+                        f"Resolved email '{identifier}' to username '{resolved_name}' (Server/DC)"
+                    )
+                else:
+                    # Если поиск не дал результатов, пробуем использовать email как username
+                    api_kwargs["username"] = identifier
+                    logger.debug(
+                        f"Determined param: username='{identifier}' (Server/DC email - might not work)"
+                    )
             elif "-" in identifier and any(c.isdigit() for c in identifier):
                 api_kwargs["key"] = identifier
                 logger.debug(f"Determined param: key='{identifier}' (Server/DC)")
             else:
-                api_kwargs["username"] = identifier
-                logger.debug(f"Determined param: username='{identifier}' (Server/DC)")
+                # Пробуем найти пользователя через поиск
+                resolved_name = self._lookup_user_directly(identifier)
+                if resolved_name:
+                    api_kwargs["username"] = resolved_name
+                    logger.debug(
+                        f"Resolved '{identifier}' to username '{resolved_name}' (Server/DC)"
+                    )
+                else:
+                    api_kwargs["username"] = identifier
+                    logger.debug(f"Determined param: username='{identifier}' (Server/DC)")
         # Cloud: identifier is email
         elif self.config.is_cloud and "@" in identifier:
             try:

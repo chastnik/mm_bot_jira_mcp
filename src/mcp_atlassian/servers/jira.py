@@ -81,6 +81,84 @@ async def get_user_profile(
 
 
 @jira_mcp.tool(tags={"jira", "read"})
+async def search_users(
+    ctx: Context,
+    query: Annotated[
+        str,
+        Field(
+            description="Search query - can be part of user's name, username, or email (e.g., 'Сергей', 'Журавлев', 'sergey')."
+        ),
+    ],
+    limit: Annotated[
+        int,
+        Field(
+            description="Maximum number of users to return (default: 10)",
+            default=10,
+        ),
+    ] = 10,
+) -> str:
+    """
+    Search for Jira users by name, username, or email.
+    
+    Use this tool to find user's username before searching for their issues.
+    For example, to find issues assigned to "Сергей Журавлев":
+    1. First call search_users with query="Журавлев" to find the username
+    2. Then use jira_search with JQL like: assignee = "found_username"
+
+    Args:
+        ctx: The FastMCP context.
+        query: Search string (name, username, or email).
+        limit: Maximum results to return.
+
+    Returns:
+        JSON string with list of matching users.
+    """
+    jira = await get_jira_fetcher(ctx)
+    try:
+        params = {}
+        if jira.config.is_cloud:
+            params["query"] = query
+        else:
+            params["username"] = query
+        
+        response = jira.jira.user_find_by_user_string(**params, start=0, limit=limit)
+        
+        if not isinstance(response, list):
+            return json.dumps({
+                "success": False,
+                "error": f"Unexpected response type: {type(response)}",
+                "query": query
+            }, ensure_ascii=False)
+        
+        users = []
+        for user in response:
+            user_info = {
+                "username": user.get("name") or user.get("key"),
+                "displayName": user.get("displayName"),
+                "email": user.get("emailAddress"),
+            }
+            if jira.config.is_cloud:
+                user_info["accountId"] = user.get("accountId")
+            users.append(user_info)
+        
+        return json.dumps({
+            "success": True,
+            "count": len(users),
+            "users": users,
+            "query": query,
+            "hint": "Use the 'username' field value in JQL queries like: assignee = \"username\""
+        }, indent=2, ensure_ascii=False)
+        
+    except Exception as e:
+        logger.error(f"Error searching users with query '{query}': {e}", exc_info=True)
+        return json.dumps({
+            "success": False,
+            "error": str(e),
+            "query": query
+        }, ensure_ascii=False)
+
+
+@jira_mcp.tool(tags={"jira", "read"})
 async def get_issue(
     ctx: Context,
     issue_key: Annotated[str, Field(description="Jira issue key (e.g., 'PROJ-123')")],
@@ -354,6 +432,175 @@ async def get_worklog(
     worklogs = jira.get_worklogs(issue_key)
     result = {"worklogs": worklogs}
     return json.dumps(result, indent=2, ensure_ascii=False)
+
+
+@jira_mcp.tool(tags={"jira", "read"})
+async def search_worklogs(
+    ctx: Context,
+    username: Annotated[
+        str,
+        Field(
+            description="Username of the person who logged work (e.g., 'OAAntonov', 'ivanov'). Use search_users first to find the username."
+        ),
+    ],
+    date_from: Annotated[
+        str,
+        Field(
+            description="Start date in format YYYY-MM-DD (e.g., '2024-12-05')"
+        ),
+    ],
+    date_to: Annotated[
+        str | None,
+        Field(
+            description="End date in format YYYY-MM-DD. If not specified, same as date_from.",
+            default=None,
+        ),
+    ] = None,
+    project_key: Annotated[
+        str | None,
+        Field(
+            description="Optional project key to filter (e.g., 'PROJ'). If not specified, searches all projects.",
+            default=None,
+        ),
+    ] = None,
+    limit: Annotated[
+        int,
+        Field(
+            description="Maximum number of issues to search (default: 500)",
+            default=500,
+        ),
+    ] = 500,
+) -> str:
+    """Search for worklogs (time entries) by user and date range.
+    
+    Use this to find how much time a user logged on a specific date or date range.
+    First use search_users to find the username, then call this tool.
+
+    Args:
+        ctx: The FastMCP context.
+        username: Username who logged the work.
+        date_from: Start date (YYYY-MM-DD).
+        date_to: End date (YYYY-MM-DD), optional.
+        project_key: Optional project key filter.
+        limit: Maximum issues to return.
+
+    Returns:
+        JSON string with worklogs found.
+    """
+    jira = await get_jira_fetcher(ctx)
+    
+    if date_to is None:
+        date_to = date_from
+    
+    all_worklogs = []
+    total_seconds = 0
+    checked_issues = 0
+    
+    try:
+        all_issues = []
+        use_author_filter = True
+        
+        # Сначала пробуем JQL с worklogAuthor (быстрее, если поддерживается)
+        if project_key:
+            jql_with_author = f'project = {project_key} AND worklogAuthor = "{username}" AND worklogDate >= "{date_from}" AND worklogDate <= "{date_to}"'
+        else:
+            jql_with_author = f'worklogAuthor = "{username}" AND worklogDate >= "{date_from}" AND worklogDate <= "{date_to}"'
+        
+        logger.info(f"Trying optimized JQL with worklogAuthor: {jql_with_author}")
+        
+        try:
+            # Пагинация для worklogAuthor запроса
+            start = 0
+            batch_size = 100
+            while len(all_issues) < limit:
+                search_result = jira.search_issues(jql_with_author, fields="key,summary", start=start, limit=batch_size)
+                if not search_result.issues:
+                    break
+                all_issues.extend(search_result.issues)
+                logger.info(f"worklogAuthor: fetched {len(search_result.issues)} issues (total: {len(all_issues)})")
+                if len(search_result.issues) < batch_size:
+                    break
+                start += batch_size
+            
+            if all_issues:
+                logger.info(f"worklogAuthor JQL worked! Found {len(all_issues)} issues total")
+        except Exception as e:
+            logger.info(f"worklogAuthor JQL not supported: {e}")
+            use_author_filter = False
+        
+        # Если worklogAuthor не поддерживается или не нашёл результаты - используем широкий поиск
+        if not all_issues:
+            use_author_filter = False
+            if project_key:
+                jql = f'project = {project_key} AND worklogDate >= "{date_from}" AND worklogDate <= "{date_to}"'
+            else:
+                jql = f'worklogDate >= "{date_from}" AND worklogDate <= "{date_to}"'
+            
+            logger.info(f"Using broad JQL: {jql}")
+            
+            # Собираем задачи с пагинацией
+            start = 0
+            batch_size = 100
+            
+            while len(all_issues) < limit:
+                search_result = jira.search_issues(jql, fields="key,summary", start=start, limit=batch_size)
+                if not search_result.issues:
+                    break
+                all_issues.extend(search_result.issues)
+                logger.info(f"Fetched {len(search_result.issues)} issues (total: {len(all_issues)})")
+                if len(search_result.issues) < batch_size:
+                    break
+                start += batch_size
+        
+        logger.info(f"Found total {len(all_issues)} issues with worklogs in period")
+        
+        for issue in all_issues:
+            checked_issues += 1
+            try:
+                worklogs = jira.get_worklogs(issue.key)
+                for wl in worklogs:
+                    # Сравниваем с username (author_username) или displayName (author)
+                    wl_username = wl.get("author_username", "").lower()
+                    wl_display = wl.get("author", "").lower()
+                    wl_started = wl.get("started", "")[:10]  # YYYY-MM-DD
+                    
+                    username_lower = username.lower()
+                    # Фильтруем по автору (username или displayName) и дате
+                    author_match = (wl_username == username_lower or username_lower in wl_display)
+                    if author_match and date_from <= wl_started <= date_to:
+                        wl["issue_key"] = issue.key
+                        wl["issue_summary"] = issue.summary
+                        all_worklogs.append(wl)
+                        total_seconds += wl.get("timeSpentSeconds", 0)
+            except Exception as e:
+                logger.warning(f"Error getting worklogs for {issue.key}: {e}")
+        
+        # Форматируем общее время
+        hours = total_seconds // 3600
+        minutes = (total_seconds % 3600) // 60
+        total_time = f"{hours}h {minutes}m" if hours or minutes else "0m"
+        
+        return json.dumps({
+            "success": True,
+            "username": username,
+            "date_from": date_from,
+            "date_to": date_to,
+            "total_time": total_time,
+            "total_seconds": total_seconds,
+            "worklogs_count": len(all_worklogs),
+            "issues_checked": checked_issues,
+            "worklogs": all_worklogs
+        }, indent=2, ensure_ascii=False)
+        
+    except Exception as e:
+        logger.error(f"Error searching worklogs: {e}", exc_info=True)
+        return json.dumps({
+            "success": False,
+            "error": str(e),
+            "username": username,
+            "date_from": date_from,
+            "date_to": date_to
+        }, ensure_ascii=False)
 
 
 @jira_mcp.tool(tags={"jira", "read"})

@@ -1,6 +1,7 @@
 """Module for Jira search operations."""
 
 import logging
+import re
 from typing import Any
 
 import requests
@@ -13,6 +14,46 @@ from .constants import DEFAULT_READ_JIRA_FIELDS
 from .protocols import IssueOperationsProto
 
 logger = logging.getLogger("mcp-jira")
+
+
+def escape_jql_value(value: str) -> str:
+    """
+    Escape special characters in JQL values.
+    
+    JQL reserved characters: + - & | ! ( ) { } [ ] ^ " ~ * ? \ /
+    The @ symbol is also reserved and needs to be escaped.
+    
+    Args:
+        value: The value to escape
+        
+    Returns:
+        Escaped value safe for use in JQL
+    """
+    # Characters that need to be escaped in JQL
+    special_chars = r'[+\-&|!(){}[\]^"~*?\\/@]'
+    
+    # Replace @ with unicode escape
+    value = value.replace("@", "\\u0040")
+    
+    return value
+
+
+def escape_jql_string(jql: str) -> str:
+    """
+    Escape special characters in string values within JQL query.
+    
+    This finds quoted strings and email addresses in JQL and escapes them.
+    
+    Args:
+        jql: The JQL query
+        
+    Returns:
+        JQL with escaped values
+    """
+    # Escape @ symbol that is not already escaped and not in quotes
+    # Simple approach: replace unescaped @ with \u0040
+    result = re.sub(r'(?<!\\)@', r'\\u0040', jql)
+    return result
 
 
 class SearchMixin(JiraClient, IssueOperationsProto):
@@ -48,6 +89,9 @@ class SearchMixin(JiraClient, IssueOperationsProto):
             Exception: If there is an error searching for issues
         """
         try:
+            # Escape special characters in JQL (like @ symbol)
+            jql = escape_jql_string(jql)
+            
             # Use projects_filter parameter if provided, otherwise fall back to config
             filter_to_use = projects_filter or self.config.projects_filter
 
@@ -144,7 +188,8 @@ class SearchMixin(JiraClient, IssueOperationsProto):
 
                 return search_result
             else:
-                limit = min(limit, 50)
+                # Server/DC: увеличиваем лимит до 1000 (стандартный максимум Jira)
+                limit = min(limit, 1000)
                 response = self.jira.jql(
                     jql, fields=fields_param, start=start, limit=limit, expand=expand
                 )

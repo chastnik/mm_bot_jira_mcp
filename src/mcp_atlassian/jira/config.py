@@ -108,6 +108,9 @@ class JiraConfig:
             elif username and api_token:
                 # Allow basic auth for Server/DC too
                 auth_type = "basic"
+            elif os.getenv("ATLASSIAN_OAUTH_ENABLE", "").lower() in ("true", "1", "yes"):
+                # Minimal config for user-provided tokens mode (multi-user)
+                auth_type = "basic"  # Will use Basic auth from user-provided headers
             else:
                 error_msg = "Server/Data Center authentication requires JIRA_PERSONAL_TOKEN or JIRA_USERNAME and JIRA_API_TOKEN"
                 raise ValueError(error_msg)
@@ -185,6 +188,13 @@ class JiraConfig:
         elif self.auth_type == "pat":
             return bool(self.personal_token)
         elif self.auth_type == "basic":
+            # Check for user-provided tokens mode (multi-user)
+            if os.getenv("ATLASSIAN_OAUTH_ENABLE", "").lower() in ("true", "1", "yes"):
+                if not self.username and not self.api_token:
+                    logger.debug(
+                        "Minimal Basic auth config detected - expecting user-provided credentials via headers"
+                    )
+                    return True
             return bool(self.username and self.api_token)
         logger.warning(
             f"Unknown or unsupported auth_type: {self.auth_type} in JiraConfig"

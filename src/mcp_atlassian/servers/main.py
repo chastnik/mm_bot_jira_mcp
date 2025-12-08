@@ -203,8 +203,11 @@ class AtlassianMCP(FastMCP[MainAppContext]):
             path=path, middleware=final_middleware_list, transport=transport
         )
         # Проверяем, что middleware зарегистрирован
+        middleware_count = "N/A"
+        if hasattr(app, 'middleware_stack') and app.middleware_stack is not None:
+            middleware_count = len(app.middleware_stack)
         logger.info(
-            f"http_app: HTTP app создан, количество middleware в app: {len(app.middleware_stack) if hasattr(app, 'middleware_stack') else 'N/A'}, "
+            f"http_app: HTTP app создан, количество middleware в app: {middleware_count}, "
             f"количество routes: {len(app.routes)}"
         )
         # Добавляем обработчик health check

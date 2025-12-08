@@ -213,6 +213,10 @@ class WorklogMixin(JiraClient):
             # Process the worklogs
             worklogs = []
             for worklog in result.get("worklogs", []):
+                author_data = worklog.get("author", {})
+                # Get both username (name/key) and displayName for flexible matching
+                author_username = author_data.get("name") or author_data.get("key") or ""
+                author_display = author_data.get("displayName", "Unknown")
                 worklogs.append(
                     {
                         "id": worklog.get("id"),
@@ -222,9 +226,8 @@ class WorklogMixin(JiraClient):
                         "started": str(parse_date(worklog.get("started", ""))),
                         "timeSpent": worklog.get("timeSpent", ""),
                         "timeSpentSeconds": worklog.get("timeSpentSeconds", 0),
-                        "author": worklog.get("author", {}).get(
-                            "displayName", "Unknown"
-                        ),
+                        "author": author_display,
+                        "author_username": author_username,
                     }
                 )
 
