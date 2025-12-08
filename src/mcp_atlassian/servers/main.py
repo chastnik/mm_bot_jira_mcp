@@ -309,8 +309,12 @@ class UserTokenMiddleware(BaseHTTPMiddleware):
                 import base64
                 try:
                     encoded = auth_header.split(" ", 1)[1].strip()
+                    logger.debug(
+                        f"UserTokenMiddleware.dispatch: Basic auth header found, encoded length: {len(encoded)}"
+                    )
                     decoded = base64.b64decode(encoded).decode("utf-8")
                     if ":" not in decoded:
+                        logger.error(f"Invalid Basic auth format: no colon in decoded string")
                         return JSONResponse(
                             {"error": "Unauthorized: Invalid Basic auth format"},
                             status_code=401,
@@ -329,9 +333,9 @@ class UserTokenMiddleware(BaseHTTPMiddleware):
                         "UserTokenMiddleware.dispatch: Set request.state for Basic auth."
                     )
                 except Exception as e:
-                    logger.error(f"Error decoding Basic auth: {e}")
+                    logger.error(f"Error decoding Basic auth: {e}", exc_info=True)
                     return JSONResponse(
-                        {"error": "Unauthorized: Invalid Basic auth encoding"},
+                        {"error": f"Unauthorized: Invalid Basic auth encoding: {str(e)}"},
                         status_code=401,
                     )
             elif auth_header:
