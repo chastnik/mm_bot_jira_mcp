@@ -28,7 +28,14 @@ class MCPClient:
             jira_url: URL Jira сервера (для базовой конфигурации)
             confluence_url: URL Confluence сервера (опционально)
         """
-        self.mcp_url = mcp_url.rstrip("/")
+        # Убеждаемся, что URL заканчивается на /mcp/
+        mcp_url = mcp_url.rstrip("/")
+        if not mcp_url.endswith("/mcp"):
+            # Если URL не содержит /mcp, добавляем его
+            self.mcp_url = f"{mcp_url}/mcp/"
+        else:
+            # Если уже есть /mcp, просто добавляем слэш в конце
+            self.mcp_url = f"{mcp_url}/"
         self.jira_url = jira_url
         self.confluence_url = confluence_url
         self.client = httpx.AsyncClient(timeout=30.0)
@@ -73,8 +80,8 @@ class MCPClient:
             try:
                 response = await self.client.get(f"http://{host}:{port}/healthz")
                 if response.status_code == 200:
-                    logger.info(f"MCP сервер запущен на http://{host}:{port}/mcp")
-                    self.mcp_url = f"http://{host}:{port}/mcp"
+                    logger.info(f"MCP сервер запущен на http://{host}:{port}/mcp/")
+                    self.mcp_url = f"http://{host}:{port}/mcp/"
                     return
             except Exception:
                 pass
