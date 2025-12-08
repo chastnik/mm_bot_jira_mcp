@@ -195,13 +195,22 @@ class AtlassianMCP(FastMCP[MainAppContext]):
         final_middleware_list = [user_token_mw]
         if middleware:
             final_middleware_list.extend(middleware)
+        logger.info(
+            f"http_app: Создание HTTP app с {len(final_middleware_list)} middleware, "
+            f"path={path}, transport={transport}"
+        )
         app = super().http_app(
             path=path, middleware=final_middleware_list, transport=transport
+        )
+        # Проверяем, что middleware зарегистрирован
+        logger.info(
+            f"http_app: HTTP app создан, количество middleware в app: {len(app.middleware_stack) if hasattr(app, 'middleware_stack') else 'N/A'}, "
+            f"количество routes: {len(app.routes)}"
         )
         # Добавляем обработчик health check
         from starlette.routing import Route
         app.routes.append(Route("/healthz", health_check, methods=["GET"]))
-        logger.info(f"http_app: Создан HTTP app с middleware, path={path}, transport={transport}")
+        logger.info(f"http_app: Добавлен /healthz endpoint, всего routes: {len(app.routes)}")
         return app
 
 
