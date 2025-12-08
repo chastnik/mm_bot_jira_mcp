@@ -86,12 +86,28 @@ class MattermostBot:
         )
 
         # Инициализация Mattermost драйвера
+        # Извлекаем домен из URL (убираем протокол)
+        mattermost_url = self.config.mattermost_url
+        if mattermost_url.startswith("https://"):
+            scheme = "https"
+            port = 443
+            url = mattermost_url[8:]  # Убираем "https://"
+        elif mattermost_url.startswith("http://"):
+            scheme = "http"
+            port = 80
+            url = mattermost_url[7:]  # Убираем "http://"
+        else:
+            # Если протокол не указан, предполагаем https
+            scheme = "https"
+            port = 443
+            url = mattermost_url
+
         self.driver = Driver(
             {
-                "url": self.config.mattermost_url,
+                "url": url,
                 "token": self.config.mattermost_token,
-                "scheme": "https" if self.config.mattermost_url.startswith("https") else "http",
-                "port": 443 if self.config.mattermost_url.startswith("https") else 80,
+                "scheme": scheme,
+                "port": port,
             }
         )
 
