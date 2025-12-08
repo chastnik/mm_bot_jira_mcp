@@ -363,6 +363,7 @@ async def get_confluence_fetcher(ctx: Context) -> ConfluenceFetcher:
             return request.state.confluence_fetcher
         user_auth_type = getattr(request.state, "user_atlassian_auth_type", None)
         logger.debug(f"get_confluence_fetcher: User auth type: {user_auth_type}")
+        # If OAuth, PAT token, or Basic auth is present, create user-specific fetcher
         if user_auth_type in ["oauth", "pat"] and hasattr(
             request.state, "user_atlassian_token"
         ):
@@ -430,9 +431,62 @@ async def get_confluence_fetcher(ctx: Context) -> ConfluenceFetcher:
                     f"get_confluence_fetcher: Failed to create/validate user-specific ConfluenceFetcher: {e}"
                 )
                 raise ValueError(f"Invalid user Confluence token or configuration: {e}")
+        elif user_auth_type == "basic" and hasattr(
+            request.state, "user_atlassian_username"
+        ):
+            user_username = getattr(request.state, "user_atlassian_username", None)
+            user_password = getattr(request.state, "user_atlassian_password", None)
+
+            if not user_username or not user_password:
+                raise ValueError(
+                    "User Atlassian username or password found in state but is empty."
+                )
+            credentials = {
+                "username": user_username,
+                "password": user_password,
+                "user_email_context": user_username,
+            }
+            lifespan_ctx_dict = ctx.request_context.lifespan_context  # type: ignore
+            app_lifespan_ctx: MainAppContext | None = (
+                lifespan_ctx_dict.get("app_lifespan_context")
+                if isinstance(lifespan_ctx_dict, dict)
+                else None
+            )
+            if not app_lifespan_ctx or not app_lifespan_ctx.full_confluence_config:
+                raise ValueError(
+                    "Confluence global configuration (URL, SSL) is not available from lifespan context."
+                )
+
+            logger.info(
+                f"Creating user-specific ConfluenceFetcher (type: basic) for user {user_username}"
+            )
+            user_specific_config = _create_user_config_for_fetcher(
+                base_config=app_lifespan_ctx.full_confluence_config,
+                auth_type="basic",
+                credentials=credentials,
+                cloud_id=None,
+            )
+            try:
+                user_confluence_fetcher = ConfluenceFetcher(config=user_specific_config)
+                current_user_data = user_confluence_fetcher.get_current_user()
+                display_name = current_user_data.get("displayName", "unknown")
+                derived_email = current_user_data.get("email", user_username)
+                logger.debug(
+                    f"get_confluence_fetcher: Validated Confluence Basic auth. User context: Email='{user_username or derived_email}', DisplayName='{display_name}'"
+                )
+                request.state.confluence_fetcher = user_confluence_fetcher
+                if current_user_data.get("email"):
+                    request.state.user_atlassian_email = current_user_data["email"]
+                return user_confluence_fetcher
+            except Exception as e:
+                logger.error(
+                    f"get_confluence_fetcher: Failed to create/validate user-specific ConfluenceFetcher with Basic auth: {e}",
+                    exc_info=True,
+                )
+                raise ValueError(f"Invalid user Confluence credentials or configuration: {e}")
         else:
             logger.debug(
-                f"get_confluence_fetcher: No user-specific ConfluenceFetcher. Auth type: {user_auth_type}. Token present: {hasattr(request.state, 'user_atlassian_token')}. Will use global fallback."
+                f"get_confluence_fetcher: No user-specific ConfluenceFetcher. Auth type: {user_auth_type}. Token present: {hasattr(request.state, 'user_atlassian_token')}. Username present: {hasattr(request.state, 'user_atlassian_username')}. Will use global fallback."
             )
     except RuntimeError:
         logger.debug(
