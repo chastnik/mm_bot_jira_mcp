@@ -176,18 +176,29 @@ class MCPClient:
             # list_tools() возвращает ListToolsResult (Pydantic модель) с полем tools
             list_tools_result = await session.list_tools()
             
+            logger.debug(f"list_tools_result type: {type(list_tools_result)}")
+            logger.debug(f"list_tools_result: {list_tools_result}")
+            
             # Извлекаем список инструментов из результата
             # ListToolsResult имеет поле tools (список объектов Tool)
             if hasattr(list_tools_result, 'tools'):
                 tools = list_tools_result.tools
+                logger.debug(f"Извлечено {len(tools) if tools else 0} инструментов из list_tools_result.tools")
             elif isinstance(list_tools_result, tuple):
                 # Если это кортеж, берем первый элемент (список инструментов)
                 tools = list_tools_result[0] if list_tools_result else []
+                logger.debug(f"Извлечено {len(tools) if tools else 0} инструментов из кортежа")
             elif isinstance(list_tools_result, list):
                 # Если это уже список, используем его
                 tools = list_tools_result
+                logger.debug(f"Использован список напрямую, {len(tools)} инструментов")
             else:
                 logger.error(f"Неожиданный тип результата list_tools: {type(list_tools_result)}, значение: {list_tools_result}")
+                logger.error(f"Атрибуты list_tools_result: {dir(list_tools_result)}")
+                return []
+            
+            if not tools:
+                logger.warning("Список инструментов пуст")
                 return []
             
             # Преобразуем в формат, ожидаемый handlers
@@ -202,9 +213,11 @@ class MCPClient:
                     })
                 else:
                     logger.warning(f"Инструмент не имеет атрибута name: {type(tool)}, {tool}")
+            
+            logger.debug(f"Преобразовано {len(result)} инструментов в формат для handlers")
             return result
         except Exception as e:
-            logger.error(f"Ошибка при получении списка инструментов: {e}")
+            logger.error(f"Ошибка при получении списка инструментов: {e}", exc_info=True)
             return []
 
     async def call_tool(
