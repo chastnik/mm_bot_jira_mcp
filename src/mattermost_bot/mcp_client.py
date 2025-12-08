@@ -112,7 +112,10 @@ class MCPClient:
             Список доступных инструментов
         """
         # Заголовки HTTP запроса
-        headers = {"Content-Type": "application/json"}
+        headers = {
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        }
         if auth_headers:
             headers.update(auth_headers)
 
@@ -154,7 +157,10 @@ class MCPClient:
             Результат выполнения инструмента
         """
         # Заголовки HTTP запроса
-        headers = {"Content-Type": "application/json"}
+        headers = {
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        }
         if auth_headers:
             headers.update(auth_headers)
 
