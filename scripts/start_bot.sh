@@ -51,4 +51,3 @@ cleanup_old_processes
 # Запускаем бота
 echo "Запуск Mattermost бота..."
 uv run mattermost-bot
-
