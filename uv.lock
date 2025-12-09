@@ -927,6 +927,7 @@ dependencies = [
     { name = "types-cachetools" },
     { name = "types-python-dateutil" },
     { name = "uvicorn" },
+    { name = "websockets" },
 ]
 
 [package.dev-dependencies]
@@ -968,6 +969,7 @@ requires-dist = [
     { name = "types-cachetools", specifier = ">=5.5.0.20240820" },
     { name = "types-python-dateutil", specifier = ">=2.9.0.20241206" },
     { name = "uvicorn", specifier = ">=0.27.1" },
+    { name = "websockets", specifier = ">=11.0.0" },
 ]
 
 [package.metadata.requires-dev]

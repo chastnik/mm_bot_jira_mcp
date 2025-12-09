@@ -39,6 +39,10 @@ class BotConfig:
     # Шифрование (опциональные)
     encryption_key: str | None = None
 
+    # MCP сервер настройки (опциональные)
+    mcp_port: int = 8000
+    mcp_host: str = "127.0.0.1"
+
     @classmethod
     def from_env(cls) -> "BotConfig":
         """Создать конфигурацию из переменных окружения.
@@ -65,6 +69,18 @@ class BotConfig:
         if not jira_url:
             raise ValueError("JIRA_URL не установлен")
 
+        # Парсим PORT из окружения (по умолчанию 8000)
+        # Используем PORT вместо MCP_PORT для совместимости с MCP сервером
+        port_str = os.getenv("PORT", "8000")
+        try:
+            mcp_port = int(port_str)
+        except ValueError:
+            raise ValueError(f"PORT должен быть числом, получено: {port_str}")
+
+        # Для бота используем 127.0.0.1 по умолчанию (безопаснее для локального запуска)
+        # Если HOST не указан, используем 127.0.0.1 вместо 0.0.0.0
+        mcp_host = os.getenv("HOST", "127.0.0.1")
+
         return cls(
             mattermost_url=mattermost_url,
             mattermost_token=mattermost_token,
@@ -76,5 +92,7 @@ class BotConfig:
             confluence_url=os.getenv("CONFLUENCE_URL"),
             database_path=os.getenv("DATABASE_PATH", "bot_data.db"),
             encryption_key=os.getenv("ENCRYPTION_KEY"),
+            mcp_port=mcp_port,
+            mcp_host=mcp_host,
         )
 

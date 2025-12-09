@@ -10,14 +10,22 @@ if [ ! -f .env ]; then
     exit 1
 fi
 
+# Загружаем переменные окружения из .env
+if [ -f .env ]; then
+    export $(grep -v '^#' .env | xargs)
+fi
+
+# Получаем порт MCP сервера из переменной окружения PORT (по умолчанию 8000)
+PORT=${PORT:-8000}
+
 # Очистка старых/зависших процессов
 cleanup_old_processes() {
     echo "Проверка старых процессов..."
     
-    # Завершаем процессы на порту 8000 (MCP сервер)
-    if lsof -ti:8000 >/dev/null 2>&1; then
-        echo "Найден процесс на порту 8000, завершаем..."
-        lsof -ti:8000 | xargs -r kill -9 2>/dev/null || true
+    # Завершаем процессы на порту MCP сервера
+    if lsof -ti:${PORT} >/dev/null 2>&1; then
+        echo "Найден процесс на порту ${PORT}, завершаем..."
+        lsof -ti:${PORT} | xargs -r kill -9 2>/dev/null || true
         sleep 1
     fi
     

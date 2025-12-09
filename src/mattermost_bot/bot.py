@@ -78,7 +78,9 @@ class MattermostBot:
 
         # Запуск MCP сервера
         try:
-            await self.mcp_client.start_server(port=8000, host="127.0.0.1")
+            await self.mcp_client.start_server(
+                port=self.config.mcp_port, host=self.config.mcp_host
+            )
         except Exception as e:
             logger.error(f"Не удалось запустить MCP сервер: {e}")
             raise
