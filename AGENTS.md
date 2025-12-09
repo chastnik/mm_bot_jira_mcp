@@ -1,93 +1,93 @@
 # AGENTS
 
-> **Audience**: LLM-driven engineering agents
+> **Аудитория**: Инженерные агенты на основе LLM
 
-This file provides guidance for autonomous coding agents working inside the **MCP Atlassian** repository.
+Этот файл предоставляет руководство для автономных агентов программирования, работающих в репозитории **MCP Atlassian**.
 
 ---
 
-## Repository map
+## Карта репозитория
 
-| Path | Purpose |
+| Путь | Назначение |
 | --- | --- |
-| `src/mcp_atlassian/` | Library source code (Python ≥ 3.10) |
-| `  ├─ jira/` | Jira client, mixins, and operations |
-| `  ├─ confluence/` | Confluence client, mixins, and operations |
-| `  ├─ models/` | Pydantic data models for API responses |
-| `  ├─ servers/` | FastMCP server implementations |
-| `  └─ utils/` | Shared utilities (auth, logging, SSL) |
-| `tests/` | Pytest test suite with fixtures |
-| `scripts/` | OAuth setup and testing scripts |
+| `src/mcp_atlassian/` | Исходный код библиотеки (Python ≥ 3.10) |
+| `  ├─ jira/` | Jira клиент, миксины и операции |
+| `  ├─ confluence/` | Confluence клиент, миксины и операции |
+| `  ├─ models/` | Pydantic модели данных для ответов API |
+| `  ├─ servers/` | Реализации FastMCP серверов |
+| `  └─ utils/` | Общие утилиты (аутентификация, логирование, SSL) |
+| `tests/` | Набор тестов Pytest с фикстурами |
+| `scripts/` | Скрипты настройки OAuth и тестирования |
 
 ---
 
-## Mandatory dev workflow
+## Обязательный рабочий процесс разработки
 
 ```bash
-uv sync --frozen --all-extras --dev  # install dependencies
-pre-commit install                    # setup hooks
+uv sync --frozen --all-extras --dev  # установка зависимостей
+pre-commit install                    # настройка хуков
 pre-commit run --all-files           # Ruff + Prettier + Pyright
-uv run pytest                        # run full test suite
+uv run pytest                        # запуск полного набора тестов
 ```
 
-*Tests must pass* and *lint/typing must be clean* before committing.
+*Тесты должны проходить* и *lint/типизация должны быть чистыми* перед коммитом.
 
 ---
 
-## Core MCP patterns
+## Основные паттерны MCP
 
-**Tool naming**: `{service}_{action}` (e.g., `jira_create_issue`)
+**Именование инструментов**: `{service}_{action}` (например, `jira_create_issue`)
 
-**Architecture**:
-- **Mixins**: Functionality split into focused mixins extending base clients
-- **Models**: All data structures extend `ApiModel` base class
-- **Auth**: Supports API tokens, PAT tokens, and OAuth 2.0
-
----
-
-## Development rules
-
-1. **Package management**: ONLY use `uv`, NEVER `pip`
-2. **Branching**: NEVER work on `main`, always create feature branches
-3. **Type safety**: All functions require type hints
-4. **Testing**: New features need tests, bug fixes need regression tests
-5. **Commits**: Use trailers for attribution, never mention tools/AI
+**Архитектура**:
+- **Миксины**: Функциональность разделена на специализированные миксины, расширяющие базовые клиенты
+- **Модели**: Все структуры данных расширяют базовый класс `ApiModel`
+- **Аутентификация**: Поддерживает API токены, PAT токены и OAuth 2.0
 
 ---
 
-## Code conventions
+## Правила разработки
 
-* **Language**: Python ≥ 3.10
-* **Line length**: 88 characters maximum
-* **Imports**: Absolute imports, sorted by ruff
-* **Naming**: `snake_case` functions, `PascalCase` classes
-* **Docstrings**: Google-style for all public APIs
-* **Error handling**: Specific exceptions only
-
----
-
-## Development guidelines
-
-1. Do what has been asked; nothing more, nothing less
-2. NEVER create files unless absolutely necessary
-3. Always prefer editing existing files
-4. Follow established patterns and maintain consistency
-5. Run `pre-commit run --all-files` before committing
-6. Fix bugs immediately when reported
+1. **Управление пакетами**: ИСПОЛЬЗУЙТЕ ТОЛЬКО `uv`, НИКОГДА `pip`
+2. **Ветвление**: НИКОГДА не работайте на `main`, всегда создавайте feature ветки
+3. **Типобезопасность**: Все функции требуют аннотаций типов
+4. **Тестирование**: Новые функции требуют тестов, исправления багов требуют регрессионных тестов
+5. **Коммиты**: Используйте трейлеры для атрибуции, никогда не упоминайте инструменты/ИИ
 
 ---
 
-## Quick reference
+## Соглашения о коде
+
+* **Язык**: Python ≥ 3.10
+* **Длина строки**: максимум 88 символов
+* **Импорты**: Абсолютные импорты, отсортированные ruff
+* **Именование**: `snake_case` для функций, `PascalCase` для классов
+* **Docstrings**: Google-стиль для всех публичных API
+* **Обработка ошибок**: Только специфичные исключения
+
+---
+
+## Руководящие принципы разработки
+
+1. Делайте то, что было запрошено; ничего больше, ничего меньше
+2. НИКОГДА не создавайте файлы, если это не абсолютно необходимо
+3. Всегда предпочитайте редактирование существующих файлов
+4. Следуйте установленным паттернам и поддерживайте согласованность
+5. Запускайте `pre-commit run --all-files` перед коммитом
+6. Исправляйте баги немедленно при сообщении о них
+
+---
+
+## Краткая справка
 
 ```bash
-# Running the server
-uv run mcp-atlassian                 # Start server
-uv run mcp-atlassian --oauth-setup   # OAuth wizard
-uv run mcp-atlassian -v              # Verbose mode
+# Запуск сервера
+uv run mcp-atlassian                 # Запустить сервер
+uv run mcp-atlassian --oauth-setup   # Мастер настройки OAuth
+uv run mcp-atlassian -v              # Подробный режим
 
-# Git workflow
-git checkout -b feature/description   # New feature
-git checkout -b fix/issue-description # Bug fix
-git commit --trailer "Reported-by:<name>"      # Attribution
-git commit --trailer "Github-Issue:#<number>"  # Issue reference
+# Рабочий процесс Git
+git checkout -b feature/description   # Новая функция
+git checkout -b fix/issue-description # Исправление бага
+git commit --trailer "Reported-by:<name>"      # Атрибуция
+git commit --trailer "Github-Issue:#<number>"  # Ссылка на issue
 ```

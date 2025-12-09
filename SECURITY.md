@@ -1,27 +1,27 @@
-# Security Policy
+# Политика безопасности
 
-## Reporting Issues
+## Сообщение о проблемах
 
-Please report security vulnerabilities to [security contact].
+Пожалуйста, сообщайте об уязвимостях безопасности [контакту по безопасности].
 
-## Best Practices
+## Рекомендации по безопасности
 
-1. **API Tokens**
-   - Never commit tokens to version control
-   - Rotate tokens regularly
-   - Use minimal required permissions
+1. **API Токены**
+   - Никогда не коммитьте токены в систему контроля версий
+   - Регулярно обновляйте токены
+   - Используйте минимально необходимые разрешения
 
-2. **Environment Variables**
-   - Keep .env files secure and private
-   - Use separate tokens for development/production
+2. **Переменные окружения**
+   - Храните файлы .env в безопасности и приватно
+   - Используйте отдельные токены для разработки/продакшена
 
-3. **Access Control**
-   - Regularly audit Confluence space access
-   - Follow principle of least privilege
+3. **Контроль доступа**
+   - Регулярно проводите аудит доступа к пространствам Confluence
+   - Следуйте принципу наименьших привилегий
 
-4. **OAuth Client Credentials**
-   - Never share your client secret publicly
-   - Be aware that printing client secrets to console output poses a security risk
-   - Console output can be logged, screen-captured, or viewed by others with access to your environment
-   - If client secrets are exposed, regenerate them immediately in your Atlassian developer console
-   - Consider using environment variables or secure credential storage instead of direct console output
+4. **Учетные данные OAuth клиента**
+   - Никогда не делитесь вашим client secret публично
+   - Имейте в виду, что вывод client secret в консоль представляет угрозу безопасности
+   - Вывод консоли может быть залогирован, снят скриншотом или просмотрен другими лицами с доступом к вашему окружению
+   - Если client secret был раскрыт, немедленно перегенерируйте его в консоли разработчика Atlassian
+   - Рассмотрите использование переменных окружения или безопасного хранилища учетных данных вместо прямого вывода в консоль

@@ -1,24 +1,24 @@
-# Contributing to MCP Atlassian
+# Вклад в MCP Atlassian
 
-Thank you for your interest in contributing to MCP Atlassian! This document provides guidelines and instructions for contributing to this project.
+Спасибо за ваш интерес к участию в проекте MCP Atlassian! Этот документ содержит руководящие принципы и инструкции для внесения вклада в этот проект.
 
-## Development Setup
+## Настройка окружения разработки
 
-1. Make sure you have Python 3.10+ installed
-1. Install [uv](https://docs.astral.sh/uv/getting-started/installation/)
-1. Fork the repository
-1. Clone your fork: `git clone https://github.com/YOUR-USERNAME/mcp-atlassian.git`
-1. Add the upstream remote: `git remote add upstream https://github.com/sooperset/mcp-atlassian.git`
-1. Install dependencies:
+1. Убедитесь, что у вас установлен Python 3.10+
+1. Установите [uv](https://docs.astral.sh/uv/getting-started/installation/)
+1. Сделайте форк репозитория
+1. Клонируйте ваш форк: `git clone https://github.com/YOUR-USERNAME/mcp-atlassian.git`
+1. Добавьте upstream remote: `git remote add upstream https://github.com/sooperset/mcp-atlassian.git`
+1. Установите зависимости:
 
     ```sh
     uv sync
     uv sync --frozen --all-extras --dev
     ```
 
-1. Activate the virtual environment:
+1. Активируйте виртуальное окружение:
 
-    __macOS and Linux__:
+    __macOS и Linux__:
 
     ```sh
     source .venv/bin/activate
@@ -30,24 +30,24 @@ Thank you for your interest in contributing to MCP Atlassian! This document prov
     .venv\Scripts\activate.ps1
     ```
 
-1. Set up pre-commit hooks:
+1. Настройте pre-commit хуки:
 
     ```sh
     pre-commit install
     ```
 
-1. Set up environment variables (copy from .env.example):
+1. Настройте переменные окружения (скопируйте из .env.example):
 
     ```bash
     cp .env.example .env
     ```
 
-## Development Setup with local VSCode devcontainer
+## Настройка окружения разработки с локальным VSCode devcontainer
 
-1. Clone your fork: `git clone https://github.com/YOUR-USERNAME/mcp-atlassian.git`
-1. Add the upstream remote: `git remote add upstream https://github.com/sooperset/mcp-atlassian.git`
-1. Open the project with VSCode and open with devcontainer
-1. Add this bit of config to your `.vscode/settings.json`:
+1. Клонируйте ваш форк: `git clone https://github.com/YOUR-USERNAME/mcp-atlassian.git`
+1. Добавьте upstream remote: `git remote add upstream https://github.com/sooperset/mcp-atlassian.git`
+1. Откройте проект в VSCode и откройте с devcontainer
+1. Добавьте эту конфигурацию в ваш `.vscode/settings.json`:
 
     ```json
     {
@@ -59,83 +59,83 @@ Thank you for your interest in contributing to MCP Atlassian! This document prov
     }
     ```
 
-## Development Workflow
+## Рабочий процесс разработки
 
-1. Create a feature or fix branch:
+1. Создайте ветку для функции или исправления:
 
     ```sh
     git checkout -b feature/your-feature-name
-    # or
+    # или
     git checkout -b fix/issue-description
     ```
 
-1. Make your changes
+1. Внесите ваши изменения
 
-1. Ensure tests pass:
+1. Убедитесь, что тесты проходят:
 
     ```sh
     uv run pytest
 
-    # With coverage
+    # С покрытием
     uv run pytest --cov=mcp_atlassian
     ```
 
-1. Run code quality checks using pre-commit:
+1. Запустите проверки качества кода с помощью pre-commit:
 
     ```bash
     pre-commit run --all-files
     ```
 
-1. Commit your changes with clear, concise commit messages referencing issues when applicable
+1. Закоммитьте ваши изменения с четкими, краткими сообщениями коммита, ссылаясь на issues, когда это применимо
 
-1. Submit a pull request to the main branch
+1. Отправьте pull request в основную ветку
 
-## Code Style
+## Стиль кода
 
-- Run `pre-commit run --all-files` before committing
-- Code quality tools (managed by pre-commit):
-  - `ruff` for formatting and linting (88 char line limit)
-  - `pyright` for type checking (preferred over mypy)
-  - `prettier` for YAML/JSON formatting
-  - Additional checks for trailing whitespace, file endings, YAML/TOML validity
-- Follow type annotation patterns:
-  - `type[T]` for class types
-  - Union types with pipe syntax: `str | None`
-  - Standard collection types with subscripts: `list[str]`, `dict[str, Any]`
-- Add docstrings to all public modules, functions, classes, and methods using Google-style format:
+- Запускайте `pre-commit run --all-files` перед коммитом
+- Инструменты качества кода (управляемые pre-commit):
+  - `ruff` для форматирования и линтинга (лимит строки 88 символов)
+  - `pyright` для проверки типов (предпочтительнее mypy)
+  - `prettier` для форматирования YAML/JSON
+  - Дополнительные проверки на завершающие пробелы, окончания файлов, валидность YAML/TOML
+- Следуйте паттернам аннотаций типов:
+  - `type[T]` для типов классов
+  - Типы Union с синтаксисом pipe: `str | None`
+  - Стандартные типы коллекций с подстрочными индексами: `list[str]`, `dict[str, Any]`
+- Добавляйте docstrings ко всем публичным модулям, функциям, классам и методам, используя формат Google-style:
 
         ```python
         def function_name(param1: str, param2: int) -> bool:
-            """Summary of function purpose.
+            """Краткое описание назначения функции.
 
-            More detailed description if needed.
+            Более подробное описание при необходимости.
 
             Args:
-                param1: Description of param1
-                param2: Description of param2
+                param1: Описание param1
+                param2: Описание param2
 
             Returns:
-                Description of return value
+                Описание возвращаемого значения
 
             Raises:
-                ValueError: When and why this exception is raised
+                ValueError: Когда и почему возникает это исключение
             """
         ```
 
-## Pull Request Process
+## Процесс Pull Request
 
-1. Fill out the PR template with a description of your changes
-2. Ensure all CI checks pass
-3. Request review from maintainers
-4. Address review feedback if requested
+1. Заполните шаблон PR с описанием ваших изменений
+2. Убедитесь, что все проверки CI проходят
+3. Запросите ревью у сопровождающих
+4. Учтите отзывы ревьюеров, если они запрошены
 
-## Release Process
+## Процесс релиза
 
-Releases follow semantic versioning:
-- **MAJOR** version for incompatible API changes
-- **MINOR** version for backwards-compatible functionality additions
-- **PATCH** version for backwards-compatible bug fixes
+Релизы следуют семантическому версионированию:
+- **MAJOR** версия для несовместимых изменений API
+- **MINOR** версия для обратно совместимых добавлений функциональности
+- **PATCH** версия для обратно совместимых исправлений багов
 
 ---
 
-Thank you for contributing to MCP Atlassian!
+Спасибо за вклад в MCP Atlassian!
