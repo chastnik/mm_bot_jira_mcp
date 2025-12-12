@@ -9,6 +9,7 @@ from typing import Optional
 from .auth_manager import AuthManager
 from .llm_client import LLMClient
 from .mcp_client import MCPClient
+from .name_expander import expand_name_in_text
 from .storage import Storage
 
 logger = logging.getLogger(__name__)
@@ -193,6 +194,10 @@ class MessageHandlers:
             Ответ бота
         """
         try:
+            # Преобразуем короткие имена в полные имена в запросе
+            query = expand_name_in_text(query)
+            logger.debug(f"Запрос после преобразования имен: {query}")
+
             # Получаем учетные данные пользователя
             creds = self.storage.get_user_credentials(mm_user_id)
 
